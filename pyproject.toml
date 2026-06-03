@@ -1,0 +1,10 @@
+[project]
+name = "tour-agent"
+version = "0.1.0"
+description = "여행 코스 에이전트 — 그룹챗 코어"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+testpaths = ["tests"]
