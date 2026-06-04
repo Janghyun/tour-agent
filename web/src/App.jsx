@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { connectRoom } from "./ws.js";
 import { Icon } from "./icons.jsx";
-import { PlaceOptionsCard, ItineraryCard, MapCard } from "./cards.jsx";
+import { ChatArea, Composer } from "./chat.jsx";
 
 const params = new URLSearchParams(location.search);
 const WS_BASE = import.meta.env.VITE_WS_BASE || `ws://${location.hostname || "localhost"}:8000`;
@@ -23,35 +23,12 @@ const S = {
   miniBtn: { border: "1px solid var(--line-2)", background: "var(--surface)", borderRadius: "var(--r-xs)", padding: "5px 10px", cursor: "pointer", fontSize: 12.5, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4, color: "var(--accent-700)" },
 };
 
-function Bubble({ m }) {
-  const bot = m.author === "봇";
-  const sys = m.author === "시스템";
-  return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: bot || sys ? "flex-start" : "flex-end" }}>
-      <span style={{ fontSize: 11, color: "var(--ink-3)", margin: "0 6px 3px" }}>{m.author}</span>
-      <div style={{
-        background: sys ? "var(--amber-50)" : bot ? "var(--accent-50)" : "var(--surface)",
-        border: "1px solid var(--line)", borderRadius: "var(--r)", padding: "9px 13px", fontSize: 14, maxWidth: 460, whiteSpace: "pre-wrap",
-      }}>{m.text}</div>
-    </div>
-  );
-}
-
-function CardView({ card, onAdd, addedIds, confirmed }) {
-  if (card.type === "place_options") return <PlaceOptionsCard card={card} onAdd={onAdd} addedIds={addedIds} />;
-  if (card.type === "itinerary") return <ItineraryCard card={card} confirmed={confirmed} />;
-  if (card.type === "map") return <MapCard card={card} />;
-  return <div style={S.card}><pre style={{ margin: 0, fontSize: 12 }}>{JSON.stringify(card, null, 2)}</pre></div>;
-}
-
 export default function App() {
   const [status, setStatus] = useState("연결 중…");
   const [msgs, setMsgs] = useState([]);
   const [state, setState] = useState(null);
-  const [input, setInput] = useState("");
   const connRef = useRef(null);
   const keyRef = useRef(0);
-  const streamRef = useRef(null);
 
   const push = (m) => setMsgs((xs) => [...xs, { _k: keyRef.current++, ...m }]);
 
@@ -68,17 +45,6 @@ export default function App() {
     return () => conn.close();
   }, []);
 
-  useEffect(() => {
-    const el = streamRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [msgs]);
-
-  const send = () => {
-    const t = input.trim();
-    if (!t) return;
-    connRef.current?.sendChat(ME, t); // 백엔드가 에코 → onText로 렌더
-    setInput("");
-  };
   const addCandidate = (o) =>
     connRef.current?.sendAction({
       action: "add_candidate",
@@ -100,28 +66,11 @@ export default function App() {
       </header>
 
       <div style={S.body}>
-        <div style={S.chat}>
-          <div style={S.stream} ref={streamRef}>
-            {msgs.length === 0 && (
-              <div style={{ color: "var(--ink-3)", fontSize: 13.5, textAlign: "center", marginTop: 24 }}>
-                @봇 을 불러 장소를 검색하거나 일정을 만들어 보세요. 예: <code>@봇 성산 흑돼지 찾아줘</code>
-              </div>
-            )}
-            {msgs.map((m) => (
-              <div key={m._k}>{m.card ? <CardView card={m.card} onAdd={addCandidate} addedIds={addedIds} confirmed={state?.confirmed} /> : <Bubble m={m} />}</div>
-            ))}
-          </div>
-          <div style={S.composer}>
-            <input
-              style={S.input}
-              value={input}
-              placeholder="메시지 입력 · 봇은 @봇 또는 /일정 으로 호출"
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && send()}
-            />
-            <button style={S.btn} onClick={send}><Icon.send s={16} /> 보내기</button>
-          </div>
-        </div>
+        <ChatArea
+          messages={msgs}
+          ctx={{ me: ME, addedIds, onAdd: addCandidate, confirmed: state?.confirmed }}
+          composer={<Composer onSend={(text) => connRef.current?.sendChat(ME, text)} />}
+        />
 
         <aside style={S.panel}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>

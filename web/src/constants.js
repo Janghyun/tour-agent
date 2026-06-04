@@ -19,6 +19,14 @@ export function catKey(category = "") {
   return "sight";
 }
 
+export const SLASH = [
+  { k: "/일정", d: "후보로 동선·숙소 고려해 일정 생성·수정" },
+  { k: "/추천", d: "방 맥락에 맞는 장소 추천" },
+  { k: "/검색", d: "키워드로 장소 검색 → 옵션 카드" },
+  { k: "/비교", d: "한 슬롯의 대안 2~3개 비교" },
+  { k: "/확정", d: "작업 중 일정을 확정 일정으로", host: true },
+];
+
 export function shade(hex, amt) {
   const n = parseInt(hex.slice(1), 16);
   let r = (n >> 16) + amt,
