@@ -3,8 +3,9 @@ import { connectRoom } from "./ws.js";
 import { Icon } from "./icons.jsx";
 import { ChatArea, Composer } from "./chat.jsx";
 
-const params = new URLSearchParams(location.search);
-const WS_BASE = import.meta.env.VITE_WS_BASE || `ws://${location.hostname || "localhost"}:8000`;
+const _loc = typeof location !== "undefined" ? location : { search: "", hostname: "localhost" };
+const params = new URLSearchParams(_loc.search);
+const WS_BASE = import.meta.env.VITE_WS_BASE || `ws://${_loc.hostname || "localhost"}:8000`;
 const ROOM = params.get("room") || "jeju";
 const ME = params.get("me") || "나";
 

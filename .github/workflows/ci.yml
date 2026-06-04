@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend:
+    name: 백엔드 테스트 (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: 의존성 설치
+        run: pip install -r requirements-dev.txt
+      - name: 테스트
+        run: python -m pytest -q
+
+  frontend:
+    name: 프론트 빌드 + SSR 렌더 검증
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: 의존성 설치
+        run: npm ci || npm install
+      - name: 프로덕션 빌드
+        run: npm run build
+      - name: SSR 렌더 검증
+        run: npm run ssr-check

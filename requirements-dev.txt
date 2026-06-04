@@ -1,0 +1,5 @@
+# 테스트 전용 의존성(CI·로컬). 런타임은 requirements.txt.
+-r requirements.txt
+pytest>=8.0
+pytest-asyncio>=0.23
+pytest-timeout>=2.2
