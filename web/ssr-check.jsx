@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import App from "./src/App.jsx";
 
 const html = renderToStaticMarkup(<App />);
-const ok = html.includes("여행봇") && html.includes("봇 부르기");
+// 기본 진입 화면은 로비(URL에 room 없음) — 브랜드와 방 만들기 진입이 렌더되는지 확인.
+const ok = html.includes("여행봇") && html.includes("새 여행 방 만들기");
 console.log(`[ssr-check] rendered ${html.length} chars; markers ${ok ? "OK" : "MISSING"}`);
 process.exit(ok ? 0 : 1);
