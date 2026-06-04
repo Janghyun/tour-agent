@@ -108,6 +108,14 @@ def room_snapshot(state: RoomState) -> str:
         parts.append(f"기간: {state.dates}")
     if state.accommodations:
         parts.append("숙소: " + ", ".join(a.name for a in state.accommodations))
+    if state.candidates:
+        parts.append(
+            "후보 장소: "
+            + ", ".join(
+                f"{c.name}({c.category})" if c.category else c.name
+                for c in state.candidates
+            )
+        )
     if state.confirmed_itinerary:
         parts.append(
             "확정 일정: " + " -> ".join(p.name for p in state.confirmed_itinerary)

@@ -68,12 +68,12 @@ async def test_simple_path_injects_room_snapshot():
     assert simple.calls == ["[방 상태]\n제주 / 6/10~13 / 숙소: 애월\n\n내일 비 와?"]
 
 
-async def test_task_path_does_not_inject_snapshot():
+async def test_task_path_injects_snapshot():
     simple = RecordingRunner("simple")
     task = RecordingRunner("task")
 
     async def snapshot() -> str:
-        return "제주 / 6/10~13 / 숙소: 애월"
+        return "제주 / 후보 장소: 돈사돈, 우도"
 
     runner = RoutingAgentRunner(
         FixedClassifier("task"), simple, task, snapshot_provider=snapshot
@@ -81,8 +81,8 @@ async def test_task_path_does_not_inject_snapshot():
 
     await runner.run_turn("@봇 일정 짜줘")
 
-    # 작업 경로는 세션이 직접 맥락을 구성하므로 스냅샷을 주입하지 않는다.
-    assert task.calls == ["@봇 일정 짜줘"]
+    # 작업 경로도 방 상태(후보 풀 등)를 봐야 '담은 후보로' 일정을 짤 수 있다.
+    assert task.calls == ["[방 상태]\n제주 / 후보 장소: 돈사돈, 우도\n\n@봇 일정 짜줘"]
 
 
 async def test_budget_blocks_when_daily_limit_exceeded():

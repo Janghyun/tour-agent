@@ -91,3 +91,12 @@ def test_room_snapshot_summarizes_core_state():
     assert "6/10~13" in snap
     assert "애월펜션" in snap
     assert "성산" in snap and "우도" in snap
+
+
+def test_room_snapshot_includes_candidate_pool():
+    s = RoomState(room_id="r")
+    s.add_candidate(P("돈사돈"))
+    s.add_candidate(P("우진해장국"))
+    snap = room_snapshot(s)
+    # 봇이 '담은 후보로' 일정을 짜려면 후보 풀이 스냅샷에 보여야 한다.
+    assert "돈사돈" in snap and "우진해장국" in snap
