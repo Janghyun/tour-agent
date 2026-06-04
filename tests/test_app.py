@@ -55,8 +55,16 @@ async def test_two_clients_bot_responds_only_on_explicit_call_and_broadcasts_to_
             await ws1.send(json.dumps({"speaker": "민수", "text": "우도 갈까?"}))  # 평범한 대화
             await ws2.send(json.dumps({"speaker": "영희", "text": "@봇 일정 짜줘"}))  # 명시적 호출
 
-            r1 = json.loads(await asyncio.wait_for(ws1.recv(), 5))
-            r2 = json.loads(await asyncio.wait_for(ws2.recv(), 5))
+            # 사람 메시지 에코가 먼저 오므로 봇 응답까지 드레인한다.
+            async def recv_bot(ws):
+                for _ in range(6):
+                    m = json.loads(await asyncio.wait_for(ws.recv(), 5))
+                    if m.get("speaker") == "봇":
+                        return m
+                raise AssertionError("봇 응답을 받지 못함")
+
+            r1 = await recv_bot(ws1)
+            r2 = await recv_bot(ws2)
 
     # 봇은 명시적 호출에만 응답하고, 두 발화를 퍼널링한 맥락으로 답한다.
     assert r1["speaker"] == "봇"
@@ -136,4 +144,20 @@ async def test_itinerary_card_persists_to_working_itinerary():
 
     saved = await store.load("jeju")
     assert [p.name for p in saved.working_itinerary] == ["우도"]
+
+
+async def test_human_chat_broadcasts_to_room():
+    app = create_app(
+        agent_factory=lambda room_id, emit_card: EchoAgent(), debounce_seconds=0.05
+    )
+    async with _ServerThread(app) as port:
+        uri = f"ws://127.0.0.1:{port}/ws/jeju"
+        async with websockets.connect(uri) as a, websockets.connect(uri) as b:
+            await a.send(json.dumps({"speaker": "민수", "text": "우도 갈까?"}))  # 평범한 대화
+            ma = json.loads(await asyncio.wait_for(a.recv(), 5))
+            mb = json.loads(await asyncio.wait_for(b.recv(), 5))
+
+    # 사람 메시지가 방의 모두(보낸 사람 포함)에게 공유된다.
+    assert ma == {"speaker": "민수", "text": "우도 갈까?"}
+    assert mb == ma
 

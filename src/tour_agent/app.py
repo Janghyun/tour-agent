@@ -120,13 +120,13 @@ def create_app(
                             {"speaker": "시스템", "type": "error", "text": str(exc)}
                         )
                 else:
-                    # 채팅 메시지
-                    await room.post(
-                        Message(
-                            speaker=data.get("speaker", "익명"),
-                            text=data.get("text", ""),
-                        )
+                    # 채팅 메시지 — 방의 모두에게 공유(그룹챗)한 뒤 에이전트 처리.
+                    speaker = data.get("speaker", "익명")
+                    text = data.get("text", "")
+                    await hub.broadcast_json(
+                        room_id, {"speaker": speaker, "text": text}
                     )
+                    await room.post(Message(speaker=speaker, text=text))
         except WebSocketDisconnect:
             hub.remove(room_id, ws)
 
