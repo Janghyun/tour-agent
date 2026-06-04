@@ -50,7 +50,7 @@ async def apply_action(
     elif kind == "set_accommodation":
         state.accommodations = [_place_from(action["place"])]  # 단일(박별은 추후)
     elif kind == "set_preference":
-        state.add_preference(
+        state.set_preference(
             action["traveler"], action["target"], action["sentiment"]
         )
     elif kind == "confirm_itinerary":

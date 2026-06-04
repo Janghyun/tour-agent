@@ -52,6 +52,18 @@ class RoomState:
     def add_preference(self, traveler: str, target: str, sentiment: str) -> None:
         self.preferences.append(Preference(traveler, target, sentiment))
 
+    def set_preference(self, traveler: str, target: str, sentiment: str) -> None:
+        """여행자별 (target) 선호를 토글한다. 같은 감정을 다시 주면 해제, 반대면 교체."""
+        existing = next(
+            (p for p in self.preferences if p.traveler == traveler and p.target == target),
+            None,
+        )
+        self.preferences = [
+            p for p in self.preferences if not (p.traveler == traveler and p.target == target)
+        ]
+        if existing is None or existing.sentiment != sentiment:
+            self.preferences.append(Preference(traveler, target, sentiment))
+
     def to_dict(self) -> dict:
         return {
             "room_id": self.room_id,

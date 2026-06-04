@@ -3,6 +3,7 @@ import { connectRoom } from "./ws.js";
 import { Icon } from "./icons.jsx";
 import { ChatArea, Composer } from "./chat.jsx";
 import { LobbyScreen, CreateRoomModal, JoinRoomModal } from "./lobby.jsx";
+import { SidePanel } from "./panel.jsx";
 import { loadMe, saveMe, loadRooms, rememberRoom, forgetRoom, makeRoomCode } from "./rooms.js";
 
 const _loc = typeof location !== "undefined" ? location : { search: "", hostname: "localhost" };
@@ -113,6 +114,12 @@ function RoomView({ room, me, role, meta, onLobby }) {
     });
   const removeCandidate = (id) => connRef.current?.sendAction({ action: "remove_candidate", place_id: id });
   const confirm = () => connRef.current?.sendAction({ action: "confirm_itinerary", by: me });
+  const toggleLike = (id) => connRef.current?.sendAction({ action: "set_preference", traveler: me, target: id, sentiment: "like" });
+  const toggleDislike = (id) => connRef.current?.sendAction({ action: "set_preference", traveler: me, target: id, sentiment: "dislike" });
+
+  const [tab, setTab] = useState("cand");
+  const [selectedId, setSelectedId] = useState(null);
+  const focusMap = (id) => { setSelectedId(id); setTab("map"); };
 
   const copyCode = () => {
     if (typeof navigator !== "undefined" && navigator.clipboard) navigator.clipboard.writeText(room).catch(() => {});
@@ -145,33 +152,19 @@ function RoomView({ room, me, role, meta, onLobby }) {
           composer={<Composer onSend={(text) => connRef.current?.sendChat(me, text)} />}
         />
 
-        <aside style={S.panel}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <strong style={{ fontSize: 14 }}>후보 장소 {candidates.length ? `(${candidates.length})` : ""}</strong>
-            {state?.confirmed && <span style={{ ...S.chip, color: "var(--accent-700)" }}><Icon.check s={12} /> 확정됨</span>}
-          </div>
-          {(state?.dates || meta?.dates) && (
-            <div style={{ fontSize: 12.5, color: "var(--ink-3)", marginBottom: 10, display: "flex", alignItems: "center", gap: 5 }}>
-              <Icon.calendar s={13} /> {state?.dates || meta?.dates}
-              {(state?.accommodations?.[0]?.name || meta?.base) && <><span style={{ margin: "0 2px" }}>·</span><Icon.pin s={12} /> {state?.accommodations?.[0]?.name || meta?.base}</>}
-            </div>
-          )}
-          {candidates.length === 0 && <div style={{ fontSize: 13, color: "var(--ink-3)" }}>아직 담긴 후보가 없어요. 검색 카드에서 ‘추가’로 담아 보세요.</div>}
-          {candidates.map((c) => (
-            <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 0", borderBottom: "1px solid var(--line)" }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 13.5 }}>{c.name}</div>
-                {c.category && <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{c.category}</div>}
-              </div>
-              <button style={{ ...S.miniBtn, border: "none", color: "var(--ink-3)" }} onClick={() => removeCandidate(c.id)} aria-label="삭제"><Icon.trash s={15} /></button>
-            </div>
-          ))}
-          {isHost && (state?.working_itinerary?.length || 0) > 0 && (
-            <button style={{ ...S.btn, width: "100%", justifyContent: "center", marginTop: 14, padding: "9px 0" }} onClick={confirm}>
-              <Icon.check s={15} /> 일정 확정 (방장)
-            </button>
-          )}
-        </aside>
+        <SidePanel
+          tab={tab} setTab={setTab}
+          candidates={candidates}
+          accommodations={state?.accommodations || []}
+          preferences={state?.preferences || []}
+          itinerary={state?.working_itinerary || []}
+          confirmed={state?.confirmed}
+          me={me} isHost={isHost}
+          selectedId={selectedId} onSelect={setSelectedId}
+          onToggleLike={toggleLike} onToggleDislike={toggleDislike}
+          onRemove={removeCandidate} onFocusMap={focusMap}
+          onConfirm={confirm}
+        />
       </div>
     </div>
   );

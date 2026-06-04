@@ -44,6 +44,30 @@ def test_add_preference_accumulates_per_traveler():
     assert Preference("영희", "회", "dislike") in s.preferences
 
 
+def test_set_preference_toggles_off_on_repeat():
+    s = RoomState(room_id="r")
+    s.set_preference("민수", "p1", "like")
+    assert Preference("민수", "p1", "like") in s.preferences
+    # 같은 감정을 다시 누르면 해제된다.
+    s.set_preference("민수", "p1", "like")
+    assert not any(p.traveler == "민수" and p.target == "p1" for p in s.preferences)
+
+
+def test_set_preference_replaces_opposite_sentiment():
+    s = RoomState(room_id="r")
+    s.set_preference("민수", "p1", "like")
+    s.set_preference("민수", "p1", "dislike")
+    mine = [p for p in s.preferences if p.traveler == "민수" and p.target == "p1"]
+    assert mine == [Preference("민수", "p1", "dislike")]  # 중복 없이 교체
+
+
+def test_set_preference_independent_per_traveler():
+    s = RoomState(room_id="r")
+    s.set_preference("민수", "p1", "like")
+    s.set_preference("영희", "p1", "like")
+    assert len([p for p in s.preferences if p.target == "p1"]) == 2
+
+
 async def test_inmemory_store_persists_across_load():
     store = InMemoryStateStore()
     s = await store.load("r")
