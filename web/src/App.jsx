@@ -74,11 +74,17 @@ export default function App() {
     );
   }
 
-  return <RoomView key={session.room} room={session.room} me={me} role={session.role} meta={session.meta} onLobby={() => { updateUrl("", ""); setSession(null); }} />;
+  const switchRoom = (id) => {
+    const r = loadRooms().find((x) => x.id === id) || { id };
+    enter(id, r.role || "traveler", r);
+  };
+
+  return <RoomView key={session.room} room={session.room} me={me} role={session.role} meta={session.meta} onLobby={() => { updateUrl("", ""); setSession(null); }} onSwitch={switchRoom} />;
 }
 
-function RoomView({ room, me, role, meta, onLobby }) {
+function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
   const [status, setStatus] = useState("연결 중…");
+  const [menuOpen, setMenuOpen] = useState(false);
   const [msgs, setMsgs] = useState([]);
   const [state, setState] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -119,7 +125,15 @@ function RoomView({ room, me, role, meta, onLobby }) {
 
   const [tab, setTab] = useState("cand");
   const [selectedId, setSelectedId] = useState(null);
-  const focusMap = (id) => { setSelectedId(id); setTab("map"); };
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth <= 760);
+  const [panelOpen, setPanelOpen] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const f = () => setIsMobile(window.innerWidth <= 760);
+    window.addEventListener("resize", f);
+    return () => window.removeEventListener("resize", f);
+  }, []);
+  const focusMap = (id) => { setSelectedId(id); setTab("map"); if (isMobile) setPanelOpen(true); };
 
   const copyCode = () => {
     if (typeof navigator !== "undefined" && navigator.clipboard) navigator.clipboard.writeText(room).catch(() => {});
@@ -137,34 +151,71 @@ function RoomView({ room, me, role, meta, onLobby }) {
       <header style={S.head}>
         <button onClick={onLobby} title="내 방 목록으로" style={{ ...S.ghostBtn, padding: "5px 10px" }}><Icon.list s={15} /></button>
         <span style={{ color: "var(--accent)", display: "flex" }}><Icon.bot s={22} /></span>
-        <strong>{title}</strong>
+        <div style={{ position: "relative" }}>
+          <button onClick={() => setMenuOpen((o) => !o)} title="방 전환" style={{ border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, padding: 0, font: "inherit", color: "inherit" }}>
+            <strong>{title}</strong><Icon.chevD s={15} style={{ color: "var(--ink-3)" }} />
+          </button>
+          {menuOpen && (
+            <>
+              <div style={{ position: "fixed", inset: 0, zIndex: 40 }} onClick={() => setMenuOpen(false)} />
+              <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 41, minWidth: 220, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "var(--r)", boxShadow: "var(--sh-2)", padding: 6 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--ink-3)", padding: "6px 8px" }}>방 전환</div>
+                {loadRooms().map((r) => (
+                  <button key={r.id} onClick={() => { setMenuOpen(false); if (r.id !== room) onSwitch(r.id); }}
+                          style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", border: "none", background: r.id === room ? "var(--accent-50)" : "transparent", borderRadius: "var(--r-xs)", padding: "8px", cursor: "pointer", textAlign: "left", font: "inherit" }}>
+                    <span style={{ fontSize: 16 }}>{r.emoji || "🗺️"}</span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.dest || r.id}</div>
+                      <div style={{ fontSize: 11.5, color: "var(--ink-3)" }}>코드 {r.id}{r.dates ? ` · ${r.dates}` : ""}</div>
+                    </span>
+                    {r.id === room && <Icon.check s={15} style={{ color: "var(--accent)" }} />}
+                  </button>
+                ))}
+                <div style={{ height: 1, background: "var(--line)", margin: "5px 0" }} />
+                <button onClick={() => { setMenuOpen(false); onLobby(); }} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", border: "none", background: "transparent", borderRadius: "var(--r-xs)", padding: "8px", cursor: "pointer", font: "inherit", color: "var(--ink-2)" }}>
+                  <Icon.plus s={15} /> 새 방 만들기 · 내 방 목록
+                </button>
+              </div>
+            </>
+          )}
+        </div>
         {isHost && <span style={{ ...S.chip, color: "var(--coral, #E0567B)", background: "var(--coral-50, #FCE7EE)" }}><Icon.crown s={12} /> 방장</span>}
         <button onClick={copyCode} style={{ ...S.ghostBtn }} title="방 코드 복사">
           <Icon.send s={13} /> {copied ? "복사됨" : `코드 ${room}`}
         </button>
         <span style={{ marginLeft: "auto", fontSize: 12.5, color: status === "연결됨" ? "var(--accent)" : "var(--ink-3)" }}>● {status}</span>
+        {isMobile && (
+          <button onClick={() => setPanelOpen((o) => !o)} style={{ ...S.ghostBtn }} title="여행 패널">
+            {panelOpen ? <><Icon.bot s={14} /> 채팅</> : <><Icon.list s={14} /> 패널{candidates.length ? ` ${candidates.length}` : ""}</>}
+          </button>
+        )}
       </header>
 
       <div style={S.body}>
-        <ChatArea
-          messages={msgs}
-          ctx={{ me, addedIds, onAdd: addCandidate, confirmed: state?.confirmed }}
-          composer={<Composer onSend={(text) => connRef.current?.sendChat(me, text)} />}
-        />
+        {!(isMobile && panelOpen) && (
+          <ChatArea
+            messages={msgs}
+            ctx={{ me, addedIds, onAdd: addCandidate, confirmed: state?.confirmed }}
+            composer={<Composer onSend={(text) => connRef.current?.sendChat(me, text)} />}
+          />
+        )}
 
-        <SidePanel
-          tab={tab} setTab={setTab}
-          candidates={candidates}
-          accommodations={state?.accommodations || []}
-          preferences={state?.preferences || []}
-          itinerary={state?.working_itinerary || []}
-          confirmed={state?.confirmed}
-          me={me} isHost={isHost}
-          selectedId={selectedId} onSelect={setSelectedId}
-          onToggleLike={toggleLike} onToggleDislike={toggleDislike}
-          onRemove={removeCandidate} onFocusMap={focusMap}
-          onConfirm={confirm}
-        />
+        {(!isMobile || panelOpen) && (
+          <SidePanel
+            width={isMobile ? "100%" : 320}
+            tab={tab} setTab={setTab}
+            candidates={candidates}
+            accommodations={state?.accommodations || []}
+            preferences={state?.preferences || []}
+            itinerary={state?.working_itinerary || []}
+            confirmed={state?.confirmed}
+            me={me} isHost={isHost}
+            selectedId={selectedId} onSelect={setSelectedId}
+            onToggleLike={toggleLike} onToggleDislike={toggleDislike}
+            onRemove={removeCandidate} onFocusMap={focusMap}
+            onConfirm={confirm}
+          />
+        )}
       </div>
     </div>
   );
