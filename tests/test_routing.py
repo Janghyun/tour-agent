@@ -137,6 +137,13 @@ async def test_heuristic_classifier_routes_task_on_keywords():
     assert await c.classify("동선 고려해서 일정 짜줘") == "task"
 
 
+async def test_heuristic_classifier_routes_task_on_search_intent():
+    c = HeuristicClassifier()
+    assert await c.classify("흑돼지 맛집 알려줘") == "task"
+    assert await c.classify("근처 카페 어디 있어?") == "task"
+    assert await c.classify("제주 명소 구경하고 싶어") == "task"
+
+
 async def test_heuristic_classifier_routes_simple_on_smalltalk():
     c = HeuristicClassifier()
     assert await c.classify("안녕하세요") == "simple"
