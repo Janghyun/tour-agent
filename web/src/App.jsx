@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { connectRoom } from "./ws.js";
 import { Icon } from "./icons.jsx";
+import { PlaceOptionsCard, ItineraryCard, MapCard } from "./cards.jsx";
 
 const params = new URLSearchParams(location.search);
 const WS_BASE = import.meta.env.VITE_WS_BASE || `ws://${location.hostname || "localhost"}:8000`;
@@ -36,55 +37,10 @@ function Bubble({ m }) {
   );
 }
 
-function PlaceOptions({ card, onAdd }) {
-  return (
-    <div style={S.card}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <span style={S.chip}>장소</span>
-        <strong>{card.title || "검색 결과"}</strong>
-      </div>
-      {(card.options || []).map((o, i) => (
-        <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", borderTop: i ? "1px solid var(--line)" : "none" }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 600 }}>{o.name}</div>
-            <div style={{ fontSize: 12.5, color: "var(--ink-3)" }}>{[o.category, o.address].filter(Boolean).join(" · ")}</div>
-          </div>
-          <button style={S.miniBtn} onClick={() => onAdd(o)}><Icon.plus s={14} /> 추가</button>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ItineraryCard({ card }) {
-  return (
-    <div style={S.card}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <span style={{ ...S.chip, color: "#9a6516", background: "var(--amber-50)" }}>일정</span>
-        <strong>{card.title || "일정"}</strong>
-      </div>
-      {(card.days || []).map((d, di) => (
-        <div key={di} style={{ marginTop: di ? 10 : 0 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--ink-2)" }}>
-            {d.date || `Day ${di + 1}`}{d.accommodation ? ` · 숙소 ${d.accommodation}` : ""}
-          </div>
-          {(d.items || []).map((it, ii) => (
-            <div key={ii} style={{ display: "flex", gap: 8, fontSize: 13.5, padding: "3px 0" }}>
-              <span style={{ color: "var(--ink-3)", width: 44, flex: "none" }}>{it.time || ""}</span>
-              <span>{it.name}{it.travel_from_prev ? <em style={{ color: "var(--ink-3)", fontStyle: "normal" }}> · {it.travel_from_prev}</em> : null}</span>
-            </div>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function CardView({ card, onAdd }) {
-  if (card.type === "place_options") return <PlaceOptions card={card} onAdd={onAdd} />;
-  if (card.type === "itinerary") return <ItineraryCard card={card} />;
-  if (card.type === "map")
-    return <div style={S.card}><span style={S.chip}>지도</span> <span>핀 {(card.pins || []).length}개</span></div>;
+function CardView({ card, onAdd, addedIds, confirmed }) {
+  if (card.type === "place_options") return <PlaceOptionsCard card={card} onAdd={onAdd} addedIds={addedIds} />;
+  if (card.type === "itinerary") return <ItineraryCard card={card} confirmed={confirmed} />;
+  if (card.type === "map") return <MapCard card={card} />;
   return <div style={S.card}><pre style={{ margin: 0, fontSize: 12 }}>{JSON.stringify(card, null, 2)}</pre></div>;
 }
 
@@ -133,6 +89,7 @@ export default function App() {
   const confirm = () => connRef.current?.sendAction({ action: "confirm_itinerary", by: ME });
 
   const candidates = state?.candidates || [];
+  const addedIds = new Set(candidates.map((c) => c.id));
 
   return (
     <div style={S.app}>
@@ -151,7 +108,7 @@ export default function App() {
               </div>
             )}
             {msgs.map((m) => (
-              <div key={m._k}>{m.card ? <CardView card={m.card} onAdd={addCandidate} /> : <Bubble m={m} />}</div>
+              <div key={m._k}>{m.card ? <CardView card={m.card} onAdd={addCandidate} addedIds={addedIds} confirmed={state?.confirmed} /> : <Bubble m={m} />}</div>
             ))}
           </div>
           <div style={S.composer}>
