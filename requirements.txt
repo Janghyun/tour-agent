@@ -1,0 +1,8 @@
+# 런타임(프로덕션 = Messages API 모드). CLI/SDK 경로는 로컬 전용이라 미포함.
+fastapi>=0.110
+uvicorn[standard]>=0.27
+websockets>=12
+httpx>=0.27
+anthropic>=0.40
+# 선택: Supabase 영속(SupabaseStateStore RowStore 어댑터 구현 시)
+# supabase>=2.6

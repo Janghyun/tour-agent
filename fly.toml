@@ -1,0 +1,19 @@
+# Fly.io 배포 설정 — 백엔드(Messages API 모드).
+# 시크릿은 `fly secrets set ANTHROPIC_API_KEY=... KAKAO_REST_API_KEY=...` 로 주입(레포에 넣지 않음).
+app = "tour-agent"
+primary_region = "nrt"   # 도쿄(국내 사용자 근접)
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # 방별 인메모리 세션이 있어 상시 1대 유지(스케일 시 room 단위 sticky 라우팅 필요).
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
