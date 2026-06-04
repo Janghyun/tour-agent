@@ -12,6 +12,7 @@ import uvicorn
 import websockets
 
 from tour_agent.app import create_app
+from tour_agent.state import InMemoryStateStore
 
 
 class EchoAgent:
@@ -64,3 +65,75 @@ async def test_two_clients_bot_responds_only_on_explicit_call_and_broadcasts_to_
     assert "[영희] @봇 일정 짜줘" in r1["text"]
     # 같은 브로드캐스트를 방의 모든 클라이언트가 받는다.
     assert r1 == r2
+
+
+async def test_action_add_candidate_broadcasts_state():
+    store = InMemoryStateStore()
+    app = create_app(
+        agent_factory=lambda room_id, emit_card: EchoAgent(),
+        store=store,
+        debounce_seconds=0.05,
+    )
+
+    async with _ServerThread(app) as port:
+        uri = f"ws://127.0.0.1:{port}/ws/jeju"
+        async with websockets.connect(uri) as ws:
+            await ws.send(
+                json.dumps(
+                    {
+                        "action": "add_candidate",
+                        "place": {"id": "7", "name": "흑돼지집", "x": 126.9, "y": 33.4},
+                    }
+                )
+            )
+            msg = json.loads(await asyncio.wait_for(ws.recv(), 5))
+
+    assert msg["type"] == "state"
+    assert [c["name"] for c in msg["state"]["candidates"]] == ["흑돼지집"]
+    # 상태가 실제로 저장됐는지(재조회)
+    saved = await store.load("jeju")
+    assert [p.name for p in saved.candidates] == ["흑돼지집"]
+
+
+async def test_itinerary_card_persists_to_working_itinerary():
+    from tour_agent.api_runner import ApiAgentRunner
+    from tour_agent.cards import present_tools
+
+    store = InMemoryStateStore()
+    scripted = [
+        {
+            "stop_reason": "tool_use",
+            "content": [
+                {
+                    "type": "tool_use",
+                    "id": "t",
+                    "name": "present_itinerary",
+                    "input": {"title": "제주", "days": [{"items": [{"name": "우도", "x": 126.95, "y": 33.5}]}]},
+                }
+            ],
+        },
+        {"stop_reason": "end_turn", "content": [{"type": "text", "text": "일정 완성"}]},
+    ]
+    calls = []
+
+    async def model(messages, tools, system):
+        calls.append(1)
+        return scripted[len(calls) - 1]
+
+    def factory(room_id, emit_card):
+        return ApiAgentRunner(model, present_tools(emit_card), system="s")
+
+    app = create_app(agent_factory=factory, store=store, debounce_seconds=0.05)
+    async with _ServerThread(app) as port:
+        uri = f"ws://127.0.0.1:{port}/ws/jeju"
+        async with websockets.connect(uri) as ws:
+            await ws.send(json.dumps({"speaker": "민수", "text": "@봇 일정 짜줘"}))
+            for _ in range(4):  # state·card·text 등 몇 개 흘려보냄
+                try:
+                    await asyncio.wait_for(ws.recv(), 5)
+                except asyncio.TimeoutError:
+                    break
+
+    saved = await store.load("jeju")
+    assert [p.name for p in saved.working_itinerary] == ["우도"]
+

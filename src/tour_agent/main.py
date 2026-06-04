@@ -29,7 +29,8 @@ except KakaoError:
 app = create_app(
     agent_factory=lambda room_id, emit_card: build_default_runner(
         room_id, _store, emit_card=emit_card, kakao_client=_kakao
-    )
+    ),
+    store=_store,
 )
 
 
