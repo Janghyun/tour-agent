@@ -60,6 +60,10 @@ python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 # 봇·검색을 실제로 쓰려면 키 주입(없으면 검색/봇 기능만 비활성, 그룹챗은 동작)
 BACKEND=api ANTHROPIC_API_KEY=... KAKAO_REST_API_KEY=... \
   .venv/bin/python -m tour_agent.main                     # ws://localhost:8000/ws/{room_id}
+
+# 실키 e2e(API 키 없이 로컬 claude 구독으로 실제 봇 검증) — claude CLI 로그인 필요
+.venv/bin/pip install claude-agent-sdk
+RUN_CLI_E2E=1 .venv/bin/python -m pytest tests/test_cli_e2e.py -s   # 실서버+구독봇+실WS, place_options 카드 종단 확인
 ```
 
 ## 프론트 실행
