@@ -25,6 +25,23 @@ class Classifier(Protocol):
     async def classify(self, prompt: str) -> str: ...
 
 
+class HeuristicClassifier:
+    """LLM 없이 키워드로 단순/작업을 분기한다(CLI·오프라인 경로용).
+
+    분류만을 위해 별도 LLM을 호출하지 않으려는 경로에서 쓴다. 슬래시 커맨드나
+    일정·검색 관련 단서가 있으면 작업(task), 그 외 잡담·단순 질의는 simple.
+    """
+
+    TASK_HINTS = (
+        "/일정", "/검색", "/추천", "/비교", "/확정",
+        "일정", "검색", "찾아", "추천", "코스", "동선", "짜줘", "짜 줘",
+        "담아", "비교", "확정",
+    )
+
+    async def classify(self, prompt: str) -> str:
+        return "task" if any(h in prompt for h in self.TASK_HINTS) else "simple"
+
+
 SnapshotProvider = Callable[[], Awaitable[str]]
 
 

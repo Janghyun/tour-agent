@@ -83,6 +83,20 @@ def test_build_default_runner_composes_without_sdk():
     assert isinstance(runner, RoutingAgentRunner)
 
 
+def test_build_default_runner_cli_backend_uses_cli_and_heuristic():
+    # CLI(구독) 경로: 휴리스틱 분류기 + CliAgentRunner(단순/작업). SDK 없이도 합성된다.
+    from tour_agent.cli_runner import CliAgentRunner
+    from tour_agent.routing import HeuristicClassifier
+
+    store = InMemoryStateStore()
+    runner = build_default_runner("r", store, backend="cli")
+
+    assert isinstance(runner, RoutingAgentRunner)
+    assert isinstance(runner._classifier, HeuristicClassifier)
+    assert isinstance(runner._simple, CliAgentRunner)
+    assert isinstance(runner._task, CliAgentRunner)
+
+
 async def test_task_path_emits_card_through_factory():
     store = InMemoryStateStore()
     emitted = []

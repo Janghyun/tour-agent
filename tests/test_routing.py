@@ -1,6 +1,11 @@
 import pytest
 
-from tour_agent.routing import BudgetExceeded, DailyBudget, RoutingAgentRunner
+from tour_agent.routing import (
+    BudgetExceeded,
+    DailyBudget,
+    HeuristicClassifier,
+    RoutingAgentRunner,
+)
 
 
 class FixedClassifier:
@@ -117,3 +122,23 @@ def test_budget_charge_raises_when_exceeded():
     budget.charge()
     with pytest.raises(BudgetExceeded):
         budget.charge()
+
+
+async def test_heuristic_classifier_routes_task_on_slash_command():
+    c = HeuristicClassifier()
+    assert await c.classify("/일정 짜줘") == "task"
+    assert await c.classify("/검색 흑돼지") == "task"
+
+
+async def test_heuristic_classifier_routes_task_on_keywords():
+    c = HeuristicClassifier()
+    assert await c.classify("@봇 제주 맛집 검색해줘") == "task"
+    assert await c.classify("3박4일 코스 추천해줘") == "task"
+    assert await c.classify("동선 고려해서 일정 짜줘") == "task"
+
+
+async def test_heuristic_classifier_routes_simple_on_smalltalk():
+    c = HeuristicClassifier()
+    assert await c.classify("안녕하세요") == "simple"
+    assert await c.classify("고마워요") == "simple"
+    assert await c.classify("우도 날씨 어때?") == "simple"
