@@ -73,6 +73,32 @@ ITINERARY_SCHEMA = {
     "required": ["days"],
 }
 
+COMPARE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "subtitle": {"type": "string"},
+        "slot": {"type": "string"},  # 어느 슬롯의 대안인지(예: "1일차 점심")
+        "options": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "category": {"type": "string"},
+                    "note": {"type": "string"},  # 한 줄 비교 포인트
+                    "pros": {"type": "array", "items": {"type": "string"}},
+                    "cons": {"type": "array", "items": {"type": "string"}},
+                    "x": {"type": "number"},
+                    "y": {"type": "number"},
+                },
+                "required": ["name"],
+            },
+        },
+    },
+    "required": ["options"],
+}
+
 MAP_SCHEMA = {
     "type": "object",
     "properties": {
@@ -131,5 +157,11 @@ def present_tools(emit: CardSink) -> list[ToolSpec]:
             "map",
             "장소 핀과 동선을 지도 카드로 보여준다",
             MAP_SCHEMA,
+        ),
+        _card_tool(
+            "present_compare",
+            "compare",
+            "한 슬롯의 대안 2~3곳을 나란히 비교 카드로 보여준다(사용자가 하나를 골라 후보에 담음)",
+            COMPARE_SCHEMA,
         ),
     ]

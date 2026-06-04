@@ -116,6 +116,51 @@ export function ItineraryCard({ card, confirmed }) {
   );
 }
 
+export function CompareCard({ card, addedIds, onAdd }) {
+  const opts = card.options || [];
+  return (
+    <div className="card pop-in">
+      <div className="card-head">
+        <div className="ico" style={{ background: "#F0E9FB", color: "#9B6FE0" }}><Icon.search s={17} /></div>
+        <div>
+          <div className="t">{card.title || "대안 비교"}</div>
+          {card.subtitle && <div className="s">{card.subtitle}</div>}
+        </div>
+        <div className="grow"></div>
+        <span className="card-tag" style={{ background: "#F0E9FB", color: "#6E47B8" }}>비교</span>
+      </div>
+      <div className="compare-grid">
+        {opts.map((o, i) => {
+          const k = catKey(o.category);
+          const id = o.id || o.name;
+          const added = addedIds?.has(id);
+          return (
+            <div className="compare-opt" key={i} style={{ textAlign: "left" }}>
+              <Thumb cat={k} size={40} />
+              <div className="nm" style={{ fontWeight: 700, marginTop: 6 }}>{o.name}</div>
+              <div style={{ margin: "3px 0 6px" }}><CatPill cat={k} /></div>
+              {o.note && <div className="meta" style={{ fontSize: 12, color: "var(--ink-3)" }}>{o.note}</div>}
+              {(o.pros || []).map((p, pi) => <div key={"p" + pi} style={{ fontSize: 11.5, color: "var(--accent-700)" }}>+ {p}</div>)}
+              {(o.cons || []).map((c, ci) => <div key={"c" + ci} style={{ fontSize: 11.5, color: "var(--ink-3)" }}>− {c}</div>)}
+              <div style={{ marginTop: 8 }}>
+                {added
+                  ? <span className="btn btn-added btn-sm"><Icon.check s={14} /> 담음</span>
+                  : <button className="btn btn-pri btn-sm" onClick={() => onAdd(o)}><Icon.check s={14} /> 이걸로</button>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {card.slot && (
+        <div className="card-foot">
+          <Icon.search s={15} style={{ color: "#9B6FE0" }} />
+          <span className="note">하나를 고르면 <b>{card.slot}</b> 후보로 담겨요.</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function MapCard({ card }) {
   const pins = card.pins || [];
   return (

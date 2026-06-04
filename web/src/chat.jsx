@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
 import { SLASH } from "./constants.js";
-import { PlaceOptionsCard, ItineraryCard, MapCard } from "./cards.jsx";
+import { PlaceOptionsCard, ItineraryCard, MapCard, CompareCard } from "./cards.jsx";
 
 const MEM_COLORS = ["#1F8A5B", "#FF7A59", "#2F86C7", "#9B6FE0", "#E0567B", "#E8962F"];
 function colorFor(name = "") {
@@ -24,6 +24,8 @@ function CardBody({ card, ctx }) {
   if (card.type === "place_options")
     return <PlaceOptionsCard card={card} onAdd={ctx.onAdd} addedIds={ctx.addedIds} />;
   if (card.type === "itinerary") return <ItineraryCard card={card} confirmed={ctx.confirmed} />;
+  if (card.type === "compare")
+    return <CompareCard card={card} onAdd={ctx.onAdd} addedIds={ctx.addedIds} />;
   if (card.type === "map") return <MapCard card={card} />;
   return <div className="bubble bot">{JSON.stringify(card)}</div>;
 }

@@ -6,9 +6,30 @@ async def _noop(_card):
     pass
 
 
-def test_present_tools_expose_three_card_types():
+def test_present_tools_expose_card_types():
     names = {t.name for t in present_tools(_noop)}
-    assert names == {"present_place_options", "present_itinerary", "present_map"}
+    assert names == {"present_place_options", "present_itinerary", "present_map", "present_compare"}
+
+
+async def test_present_compare_emits_card_and_acks():
+    emitted = []
+
+    async def emit(card):
+        emitted.append(card)
+
+    tools = {t.name: t for t in present_tools(emit)}
+    payload = {
+        "title": "점심 후보 비교",
+        "slot": "1일차 점심",
+        "options": [
+            {"name": "돈사돈", "category": "흑돼지", "note": "두꺼운 근고기"},
+            {"name": "우진해장국", "category": "해장국", "note": "고사리 육개장"},
+        ],
+    }
+    ack = await tools["present_compare"].handler(payload)
+
+    assert emitted == [{"type": "compare", **payload}]
+    assert "카드" in ack
 
 
 async def test_present_itinerary_emits_card_and_acks_to_model():
