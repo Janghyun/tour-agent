@@ -11,6 +11,14 @@ from __future__ import annotations
 
 import os
 
+# .env가 있으면 환경변수로 로드(이미 설정된 환경변수는 덮어쓰지 않음).
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:
+    pass
+
 from .app import create_app
 from .factory import build_default_runner
 from .kakao import KakaoClient, KakaoError
@@ -18,6 +26,11 @@ from .state import InMemoryStateStore
 
 # 실행 경로: 기본 api(외부 출시), 로컬·개발은 BACKEND=cli(구독)로 키 없이 봇 구동.
 _backend = os.environ.get("BACKEND", "api").lower()
+
+# CLI(구독) 모드는 claude 구독 로그인으로 인증한다. ANTHROPIC_API_KEY가 환경에 있으면
+# Agent SDK가 그 키로 API 인증을 시도하므로(키가 틀리면 'Invalid API key'), cli 모드에선 제거한다.
+if _backend == "cli":
+    os.environ.pop("ANTHROPIC_API_KEY", None)
 
 # 진실의 원천(앱 상태). 개발 기본은 인메모리, 프로덕션은 SupabaseStateStore로 교체.
 _store = InMemoryStateStore()
