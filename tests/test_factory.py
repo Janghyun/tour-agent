@@ -81,3 +81,38 @@ def test_build_default_runner_composes_without_sdk():
     store = InMemoryStateStore()
     runner = build_default_runner("r", store, daily_limit=10)
     assert isinstance(runner, RoutingAgentRunner)
+
+
+async def test_task_path_emits_card_through_factory():
+    store = InMemoryStateStore()
+    emitted = []
+
+    async def emit_card(card):
+        emitted.append(card)
+
+    state = {"task_calls": 0}
+
+    async def model(messages, tools, system):
+        if not tools:  # 분류기 호출(툴 없음) → 작업으로 분류
+            return {"stop_reason": "end_turn", "content": [{"type": "text", "text": "task"}]}
+        state["task_calls"] += 1
+        if state["task_calls"] == 1:  # 작업 러너: present_itinerary 호출
+            return {
+                "stop_reason": "tool_use",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "t1",
+                        "name": "present_itinerary",
+                        "input": {"title": "제주", "days": [{"items": [{"name": "우도"}]}]},
+                    }
+                ],
+            }
+        return {"stop_reason": "end_turn", "content": [{"type": "text", "text": "완성"}]}
+
+    runner = build_default_runner("r", store, model_client=model, emit_card=emit_card)
+    out = await runner.run_turn("@봇 일정 짜줘")
+
+    assert out == "완성"
+    assert emitted and emitted[0]["type"] == "itinerary"
+    assert emitted[0]["title"] == "제주"

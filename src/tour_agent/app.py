@@ -10,13 +10,14 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Callable
+from typing import Awaitable, Callable
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from .groupchat import AgentRunner, Message, Room
 
-AgentFactory = Callable[[str], AgentRunner]  # room_id -> AgentRunner
+CardSink = Callable[[dict], Awaitable[None]]
+AgentFactory = Callable[[str, CardSink], AgentRunner]  # (room_id, emit_card) -> AgentRunner
 
 
 class RoomHub:
@@ -32,22 +33,24 @@ class RoomHub:
         if room_id not in self._rooms:
             conns = self._conns.setdefault(room_id, set())
 
-            async def broadcast(text: str) -> None:
-                # 방의 모든 클라이언트에게 봇 메시지를 동시 팬아웃한다.
-                # (순차 전송하면 클라이언트별 백프레셔로 서로 막힐 수 있다.)
+            async def _fanout(message: dict) -> None:
+                # 방의 모든 클라이언트에게 동시 팬아웃(순차 전송 시 백프레셔로 서로 막힘).
                 targets = list(conns)
                 if targets:
                     await asyncio.gather(
-                        *(
-                            ws.send_json({"speaker": "봇", "text": text})
-                            for ws in targets
-                        ),
+                        *(ws.send_json(message) for ws in targets),
                         return_exceptions=True,
                     )
 
+            async def broadcast(text: str) -> None:
+                await _fanout({"speaker": "봇", "text": text})
+
+            async def emit_card(card: dict) -> None:
+                await _fanout({"speaker": "봇", "type": "card", "card": card})
+
             self._rooms[room_id] = Room(
                 room_id,
-                self._agent_factory(room_id),
+                self._agent_factory(room_id, emit_card),
                 broadcast,
                 debounce_seconds=self._debounce,
             )

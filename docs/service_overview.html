@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>여행봇 — 서비스 한눈에 보기</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+  :root{
+    --accent:#1F8A5B;--accent-600:#16744B;--accent-50:#E8F4ED;--accent-100:#D2E9DC;
+    --bg:#F6F1E8;--bg2:#EFE8DA;--surface:#fff;--surface2:#FBF7F0;
+    --line:#EBE3D5;--line2:#E0D7C5;
+    --ink:#2B2722;--ink2:#5A5349;--ink3:#938B7C;
+    --coral:#FF7A59;--coral50:#FFEDE6;--amber:#E8962F;--amber50:#FCF1DF;--sky:#2F86C7;--like:#FF5D73;
+    --r:16px;--r-sm:12px;--pill:999px;
+    --sh1:0 1px 2px rgba(43,39,34,.06);--sh2:0 6px 18px rgba(43,39,34,.08);
+    --font:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,system-ui,"Apple SD Gothic Neo",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:30px 20px 90px}
+  .sec{margin-top:46px}
+  .sec-h{display:flex;align-items:center;gap:10px;margin:0 0 14px}
+  .sec-h .ico{width:30px;height:30px;border-radius:9px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:800;font-size:15px;flex:none}
+  .sec-h h2{font-size:19px;margin:0}
+  .sec-h .cap{color:var(--ink3);font-size:13.5px;margin-left:2px}
+  .grid{display:grid;gap:12px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:15px 16px;box-shadow:var(--sh1)}
+  code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88em;background:#f0ece3;padding:1px 5px;border-radius:5px}
+
+  /* hero */
+  .hero{background:linear-gradient(135deg,#1F8A5B,#16744B);color:#fff;border-radius:24px;padding:32px 28px;box-shadow:var(--sh2);position:relative;overflow:hidden}
+  .hero .pin{position:absolute;right:-20px;top:-20px;opacity:.18}
+  .hero .ey{font-size:13px;letter-spacing:.08em;text-transform:uppercase;opacity:.85;font-weight:700}
+  .hero h1{font-size:33px;line-height:1.2;margin:.18em 0 .25em}
+  .hero p{margin:0;max-width:60ch;opacity:.95;font-size:15.5px}
+  .vals{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+  .vals span{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.25);padding:7px 13px;border-radius:var(--pill);font-size:13.5px;font-weight:600}
+
+  /* stats */
+  .stats{grid-template-columns:repeat(4,1fr);margin-top:14px}
+  .stat{text-align:center;padding:16px 10px}
+  .stat .n{font-size:30px;font-weight:800;color:var(--accent);line-height:1}
+  .stat .l{font-size:12.5px;color:var(--ink3);margin-top:5px}
+  @media(max-width:680px){.stats{grid-template-columns:repeat(2,1fr)}}
+
+  /* 도메인 엔티티맵 */
+  .ent{grid-template-columns:repeat(3,1fr)}
+  .ent .e{position:relative}
+  .e .top{display:flex;align-items:center;gap:8px;font-weight:700}
+  .e .dot{width:9px;height:9px;border-radius:50%;background:var(--accent)}
+  .e.host .dot{background:var(--coral)} .e.work .dot{background:var(--amber)}
+  .e .d{font-size:13px;color:var(--ink2);margin-top:5px}
+  .e .rel{font-size:11.5px;color:var(--ink3);margin-top:8px;border-top:1px dashed var(--line);padding-top:7px}
+  @media(max-width:680px){.ent{grid-template-columns:1fr}}
+
+  /* 에이전트 파이프라인 */
+  .pipe{display:flex;gap:0;align-items:stretch;flex-wrap:wrap}
+  .step{flex:1;min-width:150px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px;position:relative;margin:4px}
+  .step .k{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);font-weight:700}
+  .step .t{font-weight:700;margin:3px 0 2px;font-size:14.5px}
+  .step .s{font-size:12.5px;color:var(--ink2)}
+  .step.em{border-color:var(--accent);background:var(--accent-50)}
+  .step .tag{display:inline-block;margin-top:6px;font-size:10.5px;font-weight:700;border-radius:5px;padding:2px 6px;background:var(--accent-100);color:var(--accent-600)}
+  .branch{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+  @media(max-width:680px){.branch{grid-template-columns:1fr}}
+
+  /* 흐름 카드 */
+  .flows{grid-template-columns:repeat(2,1fr)}
+  .flow .ttl{font-weight:700;margin-bottom:7px;display:flex;align-items:center;gap:8px}
+  .flow ol{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)}
+  .flow ol li{margin:2px 0}
+  .badge{font-size:10.5px;font-weight:700;border-radius:6px;padding:2px 7px}
+  .b-a{background:var(--accent-50);color:var(--accent-600)}
+  .b-b{background:var(--amber50);color:#9a6516}
+  .b-c{background:var(--coral50);color:#b5421f}
+  .b-e{background:#e9f1f8;color:#256399}
+  @media(max-width:680px){.flows{grid-template-columns:1fr}}
+
+  /* 아키텍처 스택 */
+  .stack{display:grid;gap:8px}
+  .lyr{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);padding:13px 15px;flex-wrap:wrap}
+  .lyr .nm{font-weight:700}
+  .lyr .ds{font-size:12.5px;color:var(--ink2);flex:1;min-width:180px}
+  .hostb{font-size:11px;font-weight:700;border-radius:var(--pill);padding:4px 11px;white-space:nowrap}
+  .h-edge{background:var(--accent-50);color:var(--accent-600)}
+  .h-fly{background:var(--coral50);color:#b5421f}
+  .h-ext{background:#eef0f4;color:#41526b}
+  .h-sup{background:#e9f1f8;color:#256399}
+  .conn{text-align:center;color:#cdc6b8;font-size:15px;line-height:.6}
+
+  /* 결정 칩 */
+  .dec{grid-template-columns:repeat(2,1fr)}
+  .dc{display:flex;gap:11px;align-items:flex-start}
+  .dc .key{font-weight:700;font-size:13.5px;white-space:nowrap;color:var(--accent-600)}
+  .dc .val{font-size:13px;color:var(--ink2)}
+  @media(max-width:680px){.dec{grid-template-columns:1fr}}
+
+  /* 배포 */
+  .dep{grid-template-columns:1fr 1fr}
+  .dep .col{padding:0}
+  .dep .head{padding:12px 15px;border-radius:var(--r) var(--r) 0 0;font-weight:700;color:#fff}
+  .dep .local{background:var(--accent)} .dep .prod{background:var(--coral)}
+  .dep ul{margin:0;padding:13px 15px 15px 32px;font-size:13px;color:var(--ink2)}
+  .dep ul li{margin:3px 0}
+  @media(max-width:680px){.dep{grid-template-columns:1fr}}
+
+  /* 현황 */
+  .prog{display:flex;align-items:center;gap:12px;margin:6px 0}
+  .prog .lbl{width:160px;font-size:13.5px;font-weight:600;flex:none}
+  .bar{flex:1;height:10px;background:var(--bg2);border-radius:var(--pill);overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--accent);border-radius:var(--pill);width:0;transition:width 1.1s var(--ease,ease)}
+  .prog .pct{width:42px;text-align:right;font-size:12.5px;color:var(--ink3)}
+  .next{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+  .next span{background:var(--surface2);border:1px dashed var(--line2);border-radius:var(--pill);padding:5px 11px;font-size:12.5px;color:var(--ink2)}
+  @media(max-width:680px){.prog .lbl{width:110px}}
+
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink3)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HERO -->
+  <div class="hero">
+    <svg class="pin" width="150" height="150" viewBox="0 0 100 100"><path d="M50 18a20 20 0 00-20 20c0 15 20 40 20 40s20-25 20-40a20 20 0 00-20-20z" fill="#fff"/><circle cx="50" cy="38" r="8" fill="#1F8A5B"/></svg>
+    <div class="ey">여행 코스 에이전트</div>
+    <h1>여행봇 — 한눈에 보기</h1>
+    <p>여러 여행자가 한 방에 모여, 봇을 불러 장소를 모으고, 숙소·동선을 고려한 일정을 함께 다듬다가 방장이 확정하는 그룹 협업 채팅 서비스.</p>
+    <div class="vals">
+      <span>그룹챗 + AI 에이전트</span><span>동선 자동 일정</span><span>방장 확정</span><span>국내(제주) 특화</span>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="grid stats">
+    <div class="card stat"><div class="n" data-to="13">0</div><div class="l">백엔드 모듈</div></div>
+    <div class="card stat"><div class="n" data-to="50">0</div><div class="l">통과 테스트</div></div>
+    <div class="card stat"><div class="n" data-to="6">0</div><div class="l">핵심 흐름</div></div>
+    <div class="card stat"><div class="n" data-to="2">0</div><div class="l">실행 모드(CLI/API)</div></div>
+  </div>
+
+  <!-- 도메인 -->
+  <section class="sec">
+    <div class="sec-h"><div class="ico">1</div><h2>도메인 모델</h2><span class="cap">무엇을 다루는가</span></div>
+    <div class="grid ent">
+      <div class="card e"><div class="top"><span class="dot"></span>방 (Room)</div><div class="d">여행자들과 봇이 모인 공간. 자체 웹앱.</div><div class="rel">하나의 여행 = 하나의 방</div></div>
+      <div class="card e host"><div class="top"><span class="dot"></span>여행자 · 방장</div><div class="d">사람 멤버. 방장은 일정을 확정할 수 있는 유일한 역할.</div><div class="rel">방장만 확정 권한</div></div>
+      <div class="card e"><div class="top"><span class="dot"></span>후보 장소 풀</div><div class="d">검색 결과에서 "추가"한 방문 후보. 방 전체 공유.</div><div class="rel">일정의 입력 재료</div></div>
+      <div class="card e work"><div class="top"><span class="dot"></span>일정 · 확정 일정</div><div class="d">방마다 단일 작업 일정. 방장이 확정하면 그 시점 스냅샷이 확정 일정.</div><div class="rel">작업본 1개 + 확정 스냅샷</div></div>
+      <div class="card e"><div class="top"><span class="dot"></span>동선 · 숙소</div><div class="d">박별 숙소 기준 이동. 동선은 결정적 알고리즘이 계산.</div><div class="rel">숙소 = 박별 거점</div></div>
+      <div class="card e"><div class="top"><span class="dot"></span>선호</div><div class="d">개인 취향(좋아요/싫어요). 방에 공유돼 추천에 반영.</div><div class="rel">개인 단위 누적</div></div>
+    </div>
+  </section>
+
+  <!-- 에이전트 동작 -->
+  <section class="sec">
+    <div class="sec-h"><div class="ico">2</div><h2>에이전트 동작</h2><span class="cap">호출 → 분기 → 카드</span></div>
+    <div class="pipe">
+      <div class="step"><div class="k">트리거</div><div class="t">명시적 호출만</div><div class="s">@봇 멘션 · 슬래시 커맨드</div></div>
+      <div class="step"><div class="k">게이트</div><div class="t">단순 / 작업 분류</div><div class="s">Haiku 단발 분류</div></div>
+    </div>
+    <div class="branch">
+      <div class="step"><div class="k">단순 경로</div><div class="t">단발 + 방 스냅샷</div><div class="s">"내일 비 와?" 같은 즉답. 모호하면 되물음.</div></div>
+      <div class="step em"><div class="k">작업 경로</div><div class="t">세션 + 서브에이전트</div><div class="s">일정 설계 → <b>동선(결정적 NN+2-opt)</b> → 검증</div><span class="tag">동선은 LLM 아님</span></div>
+    </div>
+    <div class="pipe" style="margin-top:6px">
+      <div class="step"><div class="k">출력</div><div class="t">present_* 카드</div><div class="s">장소 옵션 · 일정 · 지도 · 옵션 비교</div></div>
+      <div class="step"><div class="k">저장</div><div class="t">상태 → Supabase</div><div class="s">방별 락으로 직렬화, 진실의 원천에 기록</div></div>
+    </div>
+  </section>
+
+  <!-- 흐름 -->
+  <section class="sec">
+    <div class="sec-h"><div class="ico">3</div><h2>핵심 흐름</h2><span class="cap">사용자가 실제로 겪는 것</span></div>
+    <div class="grid flows">
+      <div class="card flow"><div class="ttl"><span class="badge b-a">A</span>장소 검색 → 후보 추가</div><ol><li>@봇으로 검색</li><li>봇이 옵션 카드 제시</li><li>"추가" 누른 것만 풀에 등록</li></ol></div>
+      <div class="card flow"><div class="ttl"><span class="badge b-b">B</span>일정 설계</div><ol><li>@봇 "일정 짜줘"</li><li>작업 중 표시 + 큐잉(논블로킹)</li><li>설계·동선·검증 → 일정 카드</li></ol></div>
+      <div class="card flow"><div class="ttl"><span class="badge b-c">C</span>수정 · 되물음</div><ol><li>"우도를 둘째 날로"</li><li>작업 일정 수정</li><li>모호하면 한 번 확인</li></ol></div>
+      <div class="card flow"><div class="ttl"><span class="badge b-e">E</span>단순 질의 즉답</div><ol><li>"내일 비 와?"</li><li>방 맥락(제주·날짜) 반영</li><li>바로 답</li></ol></div>
+    </div>
+  </section>
+
+  <!-- 아키텍처 -->
+  <section class="sec">
+    <div class="sec-h"><div class="ico">4</div><h2>아키텍처</h2><span class="cap">무엇이 어디서 도는가</span></div>
+    <div class="stack">
+      <div class="lyr"><span class="nm">① 사용자</span><span class="ds">브라우저에서 채팅 + 카드 UI</span></div>
+      <div class="conn">▼ WebSocket</div>
+      <div class="lyr"><span class="nm">② 프론트 (React + 지도)</span><span class="ds">채팅·후보풀·일정·지도 패널</span><span class="hostb h-edge">Cloudflare Pages</span></div>
+      <div class="conn">▼ WSS</div>
+      <div class="lyr"><span class="nm">③ 백엔드 (방 코어 → 게이트 → Runner)</span><span class="ds">트리거·퍼널링·락·큐 → 분기 → 에이전트</span><span class="hostb h-fly">Fly / Workers</span></div>
+      <div class="conn">▼</div>
+      <div class="lyr"><span class="nm">④ Claude</span><span class="ds">Messages API 툴 루프</span><span class="hostb h-ext">Anthropic</span></div>
+      <div class="lyr"><span class="nm">④ 외부 툴</span><span class="ds">Kakao(동선·검색) · Google(영업시간·리뷰) · WebSearch</span><span class="hostb h-ext">REST</span></div>
+      <div class="lyr"><span class="nm">⑤ 상태 · 인증</span><span class="ds">후보·일정·확정·선호 — 진실의 원천</span><span class="hostb h-sup">Supabase</span></div>
+    </div>
+  </section>
+
+  <!-- 기술 결정 -->
+  <section class="sec">
+    <div class="sec-h"><div class="ico">5</div><h2>기술 결정</h2><span class="cap">왜 이렇게</span></div>
+    <div class="grid dec">
+      <div class="card dc"><span class="key">채팅 표면</span><span class="val">자체 웹앱 방 (외부 메신저 아님)</span></div>
+      <div class="card dc"><span class="key">데이터</span><span class="val">Kakao(동선·검색) + Google(영업시간·리뷰) 하이브리드</span></div>
+      <div class="card dc"><span class="key">상태</span><span class="val">Supabase, 앱 상태가 원천 (pgvector 보류)</span></div>
+      <div class="card dc"><span class="key">LLM 실행</span><span class="val">Messages API (Claude Agent SDK 대신) · cli/api 토글</span></div>
+      <div class="card dc"><span class="key">동선</span><span class="val">결정적 NN+2-opt (LLM이 순서 발명 안 함)</span></div>
+      <div class="card dc"><span class="key">의사결정</span><span class="val">방장 단독 확정 (투표 보류)</span></div>
+      <div class="card dc"><span class="key">트리거</span><span class="val">명시적 호출만 (@봇 · 슬래시)</span></div>
+      <div class="card dc"><span class="key">배포</span><span class="val">폐쇄 베타, BACKEND=api</span></div>
+    </div>
+  </section>
+
+  <!-- 배포 -->
+  <section class="sec">
+    <div class="sec-h"><div class="ico">6</div><h2>배포 모드</h2><span class="cap">로컬 vs 운영</span></div>
+    <div class="grid dep">
+      <div class="card col" style="padding:0">
+        <div class="head local">로컬 (개발) · CLI</div>
+        <ul><li>claude-code CLI / 구독</li><li>상시 프로세스 (DGX 등)</li><li>서브프로세스·인메모리 가능</li><li><code>CliAgentRunner</code></li></ul>
+      </div>
+      <div class="card col" style="padding:0">
+        <div class="head prod">운영 · API</div>
+        <ul><li>Messages API 직접 호출</li><li>백엔드 Fly/Workers + 상태 Supabase</li><li>프론트 Cloudflare Pages</li><li><code>ApiAgentRunner</code></li></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 현황 -->
+  <section class="sec">
+    <div class="sec-h"><div class="ico">7</div><h2>현황</h2><span class="cap">어디까지 왔나</span></div>
+    <div class="card">
+      <div class="prog"><span class="lbl">백엔드 로직 (Task 1~5)</span><div class="bar"><i data-w="100"></i></div><span class="pct">완료</span></div>
+      <div class="prog"><span class="lbl">cli/api 러너 토대</span><div class="bar"><i data-w="100"></i></div><span class="pct">완료</span></div>
+      <div class="prog"><span class="lbl">프론트 디자인</span><div class="bar"><i data-w="70"></i></div><span class="pct">개선중</span></div>
+      <div class="prog"><span class="lbl">상태 연결 · present_* 카드</span><div class="bar"><i data-w="20"></i></div><span class="pct">예정</span></div>
+      <div class="prog"><span class="lbl">배포 (Supabase·Fly·Pages)</span><div class="bar"><i data-w="10"></i></div><span class="pct">예정</span></div>
+      <div class="next">
+        <span>상태 쓰기 연결</span><span>present_* 카드 계약</span><span>SupabaseStateStore</span><span>모바일 레이아웃</span><span>에러/로딩 상태</span><span>실제 Kakao 지도</span><span>배포 설정</span>
+      </div>
+    </div>
+  </section>
+
+  <footer>여행봇 코스 에이전트 · 서비스 개요 인포그래픽. 백엔드 50개 테스트 통과, 프론트 디자인 개선 대기 중. 색·타이포는 제품 디자인 시스템(그린 #1F8A5B · Pretendard)을 따름.</footer>
+
+</div>
+<script>
+  // 통계 카운트업 + 진행바 애니메이션 (보일 때)
+  function animate(){
+    document.querySelectorAll('.stat .n').forEach(el=>{
+      const to=+el.dataset.to; let cur=0; const step=Math.max(1,Math.round(to/28));
+      const t=setInterval(()=>{cur+=step; if(cur>=to){cur=to;clearInterval(t);} el.textContent=cur;},26);
+    });
+    document.querySelectorAll('.bar i').forEach(b=>{ b.style.width=b.dataset.w+'%'; });
+  }
+  if('IntersectionObserver' in window){
+    const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){animate();io.disconnect();}})});
+    io.observe(document.querySelector('.stats'));
+  } else { animate(); }
+</script>
+</body>
+</html>

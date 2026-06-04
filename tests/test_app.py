@@ -44,7 +44,9 @@ class _ServerThread:
 
 
 async def test_two_clients_bot_responds_only_on_explicit_call_and_broadcasts_to_all():
-    app = create_app(agent_factory=lambda room_id: EchoAgent(), debounce_seconds=0.05)
+    app = create_app(
+        agent_factory=lambda room_id, emit_card: EchoAgent(), debounce_seconds=0.05
+    )
 
     async with _ServerThread(app) as port:
         uri = f"ws://127.0.0.1:{port}/ws/jeju"

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>여행 코스 에이전트 — 서비스 플로우</title>
+<style>
+  :root{
+    --bg:#faf9f6;--panel:#fff;--ink:#1c1b19;--muted:#6f6b63;--line:#e7e4dc;
+    --accent:#bf5a30;--accent-soft:#fbeee5;--ok:#2f7d57;
+    --radius:14px;--maxw:1080px;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:32px 20px 80px}
+  .eyebrow{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  h1{font-size:29px;line-height:1.25;margin:.2em 0 .3em}
+  .sub{color:var(--muted);max-width:64ch;margin:0}
+
+  .tabs{display:flex;flex-wrap:wrap;gap:6px;margin:26px 0 18px}
+  .tabs button{appearance:none;border:1px solid var(--line);background:var(--panel);font:inherit;font-weight:600;
+    color:var(--muted);padding:9px 15px;border-radius:999px;cursor:pointer;transition:.16s}
+  .tabs button:hover{border-color:var(--accent)}
+  .tabs button[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  .panel{display:none}
+  .panel.active{display:block;animation:fade .25s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .panel h2{font-size:19px;margin:4px 0 4px}
+  .panel .lead{color:var(--muted);margin:0 0 14px;font-size:14.5px}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--muted);margin:0 0 10px}
+  .legend i{display:inline-block;width:22px;height:0;border-top:2px solid var(--ink);vertical-align:middle;margin-right:5px}
+  .legend i.ret{border-top:2px dashed var(--muted)}
+  .legend i.emp{border-top:2px solid var(--accent)}
+  .diagram{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:8px 6px;overflow-x:auto}
+  .diagram svg{display:block;min-width:560px;width:100%;height:auto}
+  .note{font-size:13px;color:var(--muted);margin:10px 2px 0;border-left:3px solid var(--accent);padding-left:10px}
+
+  /* 아키텍처 블록 */
+  .arch{display:grid;grid-template-columns:1fr;gap:14px}
+  .layer{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+  .layer .ltop{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .layer .name{font-weight:700}
+  .layer .host{font-size:11px;font-weight:700;border-radius:999px;padding:3px 10px;background:#eef3ee;color:#2f7d57;white-space:nowrap}
+  .layer .host.edge{background:#fbeee5;color:#bf5a30}
+  .layer .host.ext{background:#eef0f4;color:#41526b}
+  .layer .desc{font-size:13.5px;color:var(--muted);margin-top:5px}
+  .archflow{text-align:center;color:#c9c4ba;font-size:20px;line-height:1}
+  code{font-family:var(--mono);font-size:.9em;background:#f2efe8;padding:1px 5px;border-radius:5px}
+  footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">여행 코스 에이전트 · 서비스 플로우</div>
+  <h1>한눈에 보는 동작 흐름</h1>
+  <p class="sub">탭을 눌러 시나리오별 시퀀스를 보세요. 실선은 요청, 점선은 응답, 주황 선은 "결정적 처리(LLM 아님)"를 뜻합니다.</p>
+
+  <div class="tabs" id="tabs" role="tablist"></div>
+
+  <!-- 전체 구조 -->
+  <section class="panel" id="p-arch" role="tabpanel">
+    <h2>전체 구조</h2>
+    <p class="lead">계층별로 무엇이 어디서(어느 플랫폼) 도는지.</p>
+    <div class="arch">
+      <div class="layer"><div class="ltop"><span class="name">① 사용자 (브라우저)</span></div><div class="desc">방에 모인 여행자들. 채팅 + 카드 UI.</div></div>
+      <div class="archflow">↓ ↑ WebSocket</div>
+      <div class="layer"><div class="ltop"><span class="name">② 프론트 — React + 지도 JS</span><span class="host">Cloudflare Pages</span></div><div class="desc">채팅·후보풀·일정·지도 패널. 봇 응답을 카드로 렌더.</div></div>
+      <div class="archflow">↓ ↑ WSS</div>
+      <div class="layer"><div class="ltop"><span class="name">③ 백엔드 — 방 코어 → 라우팅 게이트 → AgentRunner</span><span class="host edge">Fly / Workers</span></div><div class="desc">트리거·퍼널링·방별 락·디바운스·큐 → 단순/작업 분기 → 에이전트 실행.</div></div>
+      <div class="archflow">↓ 분기</div>
+      <div class="layer"><div class="ltop"><span class="name">④ Claude</span><span class="host ext">Anthropic API</span></div><div class="desc">툴-use 루프로 추론. 서브에이전트(설계·검증).</div></div>
+      <div class="layer"><div class="ltop"><span class="name">④ 외부 툴 — Kakao · Google · WebSearch</span><span class="host ext">REST</span></div><div class="desc">장소 검색·동선(소요시간)·영업시간/리뷰.</div></div>
+      <div class="layer"><div class="ltop"><span class="name">⑤ 상태 — 후보·일정·확정·선호 + 인증</span><span class="host">Supabase</span></div><div class="desc">진실의 원천. 백엔드가 읽고 쓴다. 재접속 시 여기서 복원.</div></div>
+    </div>
+    <p class="note">⑤ 상태가 진실의 원천이고, ③의 인메모리 세션은 휘발성 캐시입니다. 재접속하면 ⑤에서 상태를 꺼내 다시 구성합니다.</p>
+  </section>
+
+  <section class="panel" id="p-simple" role="tabpanel"></section>
+  <section class="panel" id="p-task" role="tabpanel"></section>
+  <section class="panel" id="p-cand" role="tabpanel"></section>
+  <section class="panel" id="p-resume" role="tabpanel"></section>
+
+  <footer>실선 = 요청 · 점선 = 응답 · 주황 = 결정적 처리(LLM 아님). 모든 흐름은 같은 백엔드/상태를 공유합니다.</footer>
+</div>
+
+<script>
+/* ── 시퀀스 다이어그램 렌더러 ──────────────────────────── */
+function renderSeq(flow){
+  const A=flow.actors, M=flow.messages;
+  const pad=95, step=Math.max(150,(820)/(Math.max(A.length-1,1))), boxW=128, boxH=34;
+  const W=pad*2+(A.length-1)*step, top=14, lifeTop=top+boxH, startY=lifeTop+34, rowH=46;
+  const H=startY+M.length*rowH+24;
+  const x=i=>pad+i*step;
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="시퀀스 다이어그램">`;
+  s+=`<defs>
+    <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#1c1b19"/></marker>
+    <marker id="ahe" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#bf5a30"/></marker>
+    <marker id="ahr" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#6f6b63"/></marker>
+  </defs>`;
+  // 라이프라인 + 액터 박스
+  A.forEach((name,i)=>{
+    s+=`<line x1="${x(i)}" y1="${lifeTop}" x2="${x(i)}" y2="${H-16}" stroke="#ddd9d0" stroke-width="1.5" stroke-dasharray="3 4"/>`;
+    s+=`<rect x="${x(i)-boxW/2}" y="${top}" width="${boxW}" height="${boxH}" rx="8" fill="#f6f4ee" stroke="#e7e4dc"/>`;
+    s+=`<text x="${x(i)}" y="${top+boxH/2+4}" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1c1b19">${name}</text>`;
+  });
+  // 메시지
+  M.forEach((m,j)=>{
+    const y=startY+j*rowH;
+    if(m.f===m.t){ // self
+      const col=m.emph?'#bf5a30':'#1c1b19', fill=m.emph?'#fbeee5':'#f2efe8';
+      const w=m.x.length*7.4+22;
+      s+=`<rect x="${x(m.f)+6}" y="${y-15}" width="${w}" height="24" rx="6" fill="${fill}" stroke="${m.emph?'#bf5a30':'#e7e4dc'}"/>`;
+      s+=`<text x="${x(m.f)+16}" y="${y+1}" font-size="12" fill="${col}" font-weight="${m.emph?700:500}">${m.x}</text>`;
+      s+=`<path d="M${x(m.f)} ${y-15} q -16 -4 -16 12 q 0 12 16 9" fill="none" stroke="${col}" stroke-width="1.4"/>`;
+    } else {
+      const x1=x(m.f), x2=x(m.t), dir=x2>x1?-7:7;
+      const col=m.ret?'#6f6b63':(m.emph?'#bf5a30':'#1c1b19');
+      const dash=m.ret?'stroke-dasharray="5 4"':'';
+      const mk=m.ret?'ahr':(m.emph?'ahe':'ah');
+      s+=`<line x1="${x1}" y1="${y}" x2="${x2+dir}" y2="${y}" stroke="${col}" stroke-width="1.7" ${dash} marker-end="url(#${mk})"/>`;
+      s+=`<text x="${(x1+x2)/2}" y="${y-7}" text-anchor="middle" font-size="12" fill="${col}" font-weight="${m.emph?700:500}">${m.x}</text>`;
+    }
+  });
+  s+=`</svg>`;
+  return s;
+}
+
+const FLOWS={
+  simple:{
+    title:"단순 질의 (치프 경로)", lead:'"내일 비 와?" 같은 짧은 질문 — 방 상태만 스냅샷으로 주입해 한 번에 답.',
+    actors:["여행자","방(Room)","게이트","러너(API)","Claude","Supabase"],
+    messages:[
+      {f:0,t:1,x:"@봇 내일 비 와?"},
+      {f:1,t:1,x:"명시적 트리거·디바운스"},
+      {f:1,t:2,x:"퍼널링한 턴"},
+      {f:2,t:2,x:"분류 = 단순 (Haiku)"},
+      {f:2,t:5,x:"방 상태 load"},
+      {f:5,t:2,x:"스냅샷(제주·날짜)",ret:true},
+      {f:2,t:3,x:"스냅샷 주입 프롬프트"},
+      {f:3,t:4,x:"Messages API (+검색)"},
+      {f:4,t:3,x:"답변",ret:true},
+      {f:3,t:1,x:"텍스트",ret:true},
+      {f:1,t:0,x:"브로드캐스트 (버블)",ret:true},
+    ],
+    note:"맥락으로도 모호하면 봇이 한 번 되묻습니다."
+  },
+  task:{
+    title:"일정 설계 (작업 경로)", lead:'"일정 짜줘" — 방별 락으로 직렬화, 서브에이전트 분업. 동선은 결정적 알고리즘.',
+    actors:["여행자","방(코어)","오케스트레이터","툴(Kakao)","Claude","Supabase"],
+    messages:[
+      {f:0,t:1,x:"@봇 일정 짜줘"},
+      {f:1,t:1,x:"디바운스 + 방별 락 획득"},
+      {f:1,t:2,x:"작업 요청 (분류=작업)"},
+      {f:2,t:4,x:"① 일정 설계: 후보 선택"},
+      {f:2,t:3,x:"② order_route 결정적(NN+2-opt)",emph:true},
+      {f:2,t:4,x:"③ 검증: 영업시간(WebSearch)"},
+      {f:2,t:5,x:"작업 일정 save"},
+      {f:2,t:1,x:"present_itinerary 카드",ret:true},
+      {f:1,t:0,x:"카드 브로드캐스트 + 락 해제",ret:true},
+    ],
+    note:"②는 LLM이 순서를 짓지 않습니다. Kakao 소요시간으로 결정적 알고리즘이 정합니다(주황)."
+  },
+  cand:{
+    title:"후보 장소 등록", lead:"검색 → 카드 → '추가'. 봇이 임의로 담지 않고, 사용자가 고른 것만 풀에 들어갑니다.",
+    actors:["여행자","방","러너","Kakao","Supabase"],
+    messages:[
+      {f:0,t:1,x:"@봇 성산 흑돼지"},
+      {f:1,t:2,x:"검색 요청"},
+      {f:2,t:3,x:"keyword_search"},
+      {f:3,t:2,x:"장소 N개",ret:true},
+      {f:2,t:0,x:"present_place_options 카드",ret:true},
+      {f:0,t:1,x:"'추가' 선택"},
+      {f:1,t:4,x:"add_candidate save"},
+      {f:4,t:1,x:"ok",ret:true},
+      {f:1,t:0,x:"후보 풀 갱신 브로드캐스트",ret:true},
+    ],
+    note:"숙소도 같은 검색 흐름에서 '숙소로 지정'을 고르면 됩니다."
+  },
+  resume:{
+    title:"재접속 / 세션 재개", lead:"방을 닫았다 열거나 서버가 재시작돼도, 상태는 Supabase에서 꺼내 다시 구성합니다.",
+    actors:["여행자","방","Supabase","러너"],
+    messages:[
+      {f:0,t:1,x:"방 재접속"},
+      {f:1,t:2,x:"load(room_id)"},
+      {f:2,t:1,x:"RoomState(후보·일정·확정·선호)",ret:true},
+      {f:1,t:1,x:"room_snapshot 생성"},
+      {f:1,t:3,x:"새 세션 + 스냅샷 주입"},
+      {f:1,t:0,x:"현재 상태 표시(확정·후보)",ret:true},
+    ],
+    note:"LLM 대화 원문은 복원하지 않습니다. 상태(사실)로부터 맥락을 재구성합니다."
+  },
+};
+
+const TABS=[
+  {id:"arch",label:"전체 구조"},
+  {id:"simple",label:"단순 질의"},
+  {id:"task",label:"일정 설계"},
+  {id:"cand",label:"후보 등록"},
+  {id:"resume",label:"재접속/재개"},
+];
+const LEGEND=`<div class="legend"><span><i></i>요청</span><span><i class="ret"></i>응답</span><span><i class="emp"></i>결정적 처리(LLM 아님)</span></div>`;
+
+// 시퀀스 패널 채우기
+for(const key of ["simple","task","cand","resume"]){
+  const f=FLOWS[key];
+  document.getElementById("p-"+key).innerHTML=
+    `<h2>${f.title}</h2><p class="lead">${f.lead}</p>${LEGEND}`+
+    `<div class="diagram">${renderSeq(f)}</div>`+
+    `<p class="note">${f.note}</p>`;
+}
+
+// 탭
+const tabsEl=document.getElementById("tabs");
+TABS.forEach((t,i)=>{
+  const b=document.createElement("button");
+  b.textContent=t.label; b.setAttribute("role","tab");
+  b.setAttribute("aria-selected", i===0);
+  b.onclick=()=>select(t.id,b);
+  tabsEl.appendChild(b); t._btn=b;
+});
+function select(id,btn){
+  document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
+  document.getElementById("p-"+id).classList.add("active");
+  TABS.forEach(t=>t._btn.setAttribute("aria-selected", t._btn===btn));
+}
+select("arch", TABS[0]._btn);
+</script>
+</body>
+</html>

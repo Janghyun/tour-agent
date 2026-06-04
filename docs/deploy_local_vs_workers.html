@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>로컬 vs Cloudflare Workers — 배포 차이</title>
+<style>
+  :root{
+    --bg:#faf9f6; --panel:#fff; --ink:#1c1b19; --muted:#6f6b63; --line:#e7e4dc;
+    --local:#2f7d57; --local-soft:#eaf5ee;
+    --workers:#c2581f; --workers-soft:#fbeee5;
+    --accent:var(--local); --accent-soft:var(--local-soft);
+    --radius:14px; --maxw:1040px;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+  }
+  body.mode-workers{ --accent:var(--workers); --accent-soft:var(--workers-soft); }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:32px 20px 80px}
+  header.top .eyebrow{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  header.top h1{font-size:30px;line-height:1.25;margin:.2em 0 .3em}
+  header.top p{color:var(--muted);max-width:62ch;margin:0}
+
+  /* 토글 */
+  .toggle{display:inline-flex;gap:4px;background:#efece5;border:1px solid var(--line);border-radius:999px;padding:5px;margin:26px 0 8px}
+  .toggle button{appearance:none;border:0;background:transparent;font:inherit;font-weight:600;color:var(--muted);
+    padding:9px 18px;border-radius:999px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:.18s}
+  .toggle button .dot{width:9px;height:9px;border-radius:50%;background:#bdb8ad}
+  .toggle button[aria-pressed="true"]{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  body.mode-local  #btn-local  .dot{background:var(--local)}
+  body.mode-workers #btn-workers .dot{background:var(--workers)}
+  .modehint{font-size:13px;color:var(--muted);margin:0 0 26px}
+  .modehint b{color:var(--accent)}
+
+  /* 흐름 다이어그램 */
+  .flow{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;align-items:stretch;margin:8px 0 6px}
+  .stage{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 13px;min-height:150px}
+  .stage .label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:6px}
+  .stage .body{font-size:13.5px}
+  .stage .v{display:none}
+  body.mode-local  .stage .v.local{display:block}
+  body.mode-workers .stage .v.workers{display:block}
+  .stage .tag{display:inline-block;font-size:11px;font-weight:700;border-radius:6px;padding:2px 7px;margin-top:8px}
+  .tag.ok{background:#e7f3ec;color:#226844}
+  .tag.no{background:#fae9e4;color:#a23a18}
+  .stage.key{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .arrow{position:absolute;right:-12px;top:50%;transform:translateY(-50%);z-index:2;color:#c9c4ba;font-size:18px}
+  .flow.run .arrow{animation:pulse 1.4s ease forwards}
+  .flow.run .arrow.a1{animation-delay:.0s}.flow.run .arrow.a2{animation-delay:.18s}
+  .flow.run .arrow.a3{animation-delay:.36s}.flow.run .arrow.a4{animation-delay:.54s}
+  @keyframes pulse{0%{color:#c9c4ba;transform:translateY(-50%) scale(1)}40%{color:var(--accent);transform:translateY(-50%) scale(1.5)}100%{color:#c9c4ba;transform:translateY(-50%) scale(1)}}
+  .caption{font-size:12.5px;color:var(--muted);margin:4px 0 0}
+  .replay{appearance:none;border:1px solid var(--line);background:var(--panel);font:inherit;font-size:13px;color:var(--ink);
+    border-radius:8px;padding:6px 12px;cursor:pointer;margin-top:10px}
+  .replay:hover{border-color:var(--accent);color:var(--accent)}
+
+  h2{font-size:18px;margin:40px 0 12px;display:flex;align-items:center;gap:9px}
+  h2 .n{font-family:var(--mono);font-size:13px;color:#fff;background:var(--accent);border-radius:6px;padding:2px 8px}
+
+  /* 비교표 */
+  table.cmp{width:100%;border-collapse:collapse;font-size:14px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  table.cmp th,table.cmp td{padding:11px 13px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  table.cmp thead th{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);background:#f6f4ee}
+  table.cmp th.local{color:var(--local)} table.cmp th.workers{color:var(--workers)}
+  table.cmp tr:last-child td{border-bottom:0}
+  table.cmp td.col{transition:background .18s}
+  body.mode-local  table.cmp .col.local{background:var(--local-soft)}
+  body.mode-workers table.cmp .col.workers{background:var(--workers-soft)}
+  .yes{color:#226844;font-weight:700}.no{color:#a23a18;font-weight:700}
+  td.feat{font-weight:600;white-space:nowrap}
+
+  /* 코드 매핑 카드 */
+  .map{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:center;margin-top:8px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+  .card.active{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .card .role{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .card .cls{font-family:var(--mono);font-size:15px;font-weight:700;margin:3px 0 6px}
+  .card .desc{font-size:13px;color:var(--muted)}
+  .map .mid{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center;line-height:1.4}
+  .iface{font-family:var(--mono);font-size:13px;background:#f2efe8;border:1px dashed var(--line);border-radius:8px;padding:8px 12px;text-align:center;margin-top:12px;color:var(--ink)}
+
+  /* 콜아웃 */
+  .callout{border:1px solid var(--line);border-left:4px solid var(--accent);background:var(--panel);border-radius:10px;padding:13px 15px;margin:12px 0;font-size:14px}
+  .callout b{color:var(--accent)}
+  .why{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+  code{font-family:var(--mono);font-size:.92em;background:#f2efe8;padding:1px 5px;border-radius:5px}
+
+  @media(max-width:860px){
+    .flow{grid-template-columns:1fr;gap:18px}
+    .arrow{right:50%;top:auto;bottom:-15px;transform:translateX(50%) rotate(90deg)}
+    .why,.map{grid-template-columns:1fr}
+    .map .mid{transform:rotate(90deg)}
+  }
+</style>
+</head>
+<body class="mode-local">
+<div class="wrap">
+
+  <header class="top">
+    <div class="eyebrow">여행 에이전트 백엔드 · 배포 비교</div>
+    <h1>로컬 vs Cloudflare Workers</h1>
+    <p>같은 백엔드를 어디서 돌리느냐에 따라 "할 수 있는 것"이 달라집니다. 아래 토글로 두 모드를 바꿔 가며, 요청이 어떻게 흐르고 무엇이 달라지는지 보세요.</p>
+
+    <div class="toggle" role="group" aria-label="배포 모드 선택">
+      <button id="btn-local"   aria-pressed="true"  onclick="setMode('local')"><span class="dot"></span>로컬 (CLI 모드)</button>
+      <button id="btn-workers" aria-pressed="false" onclick="setMode('workers')"><span class="dot"></span>Cloudflare Workers (API 모드)</button>
+    </div>
+    <p class="modehint" id="modehint"></p>
+  </header>
+
+  <!-- 흐름 -->
+  <h2><span class="n">1</span> 요청 흐름</h2>
+  <div class="flow run" id="flow">
+    <div class="stage">
+      <div class="label">① 사용자</div>
+      <div class="body">브라우저에서 <code>@봇 일정 짜줘</code> 전송</div>
+      <span class="arrow a1">→</span>
+    </div>
+    <div class="stage">
+      <div class="label">② 전송 계층</div>
+      <div class="body">
+        <span class="v local">상시 프로세스가 WebSocket을 직접 들고 있음</span>
+        <span class="v workers">엣지의 <b>Durable Object</b>가 WebSocket 담당</span>
+      </div>
+      <span class="arrow a2">→</span>
+    </div>
+    <div class="stage">
+      <div class="label">③ 컴퓨트</div>
+      <div class="body">
+        <span class="v local">내 머신/DGX의 <b>상시 Python 프로세스</b><span class="tag ok">서브프로세스 가능</span></span>
+        <span class="v workers">엣지의 <b>V8 isolate</b> (요청 스코프)<span class="tag no">서브프로세스 불가</span></span>
+      </div>
+      <span class="arrow a3">→</span>
+    </div>
+    <div class="stage key">
+      <div class="label">④ Claude 호출</div>
+      <div class="body">
+        <span class="v local"><b>Agent SDK</b> → <code>claude-code</code> CLI 서브프로세스(구독)</span>
+        <span class="v workers"><b>Messages API</b> 직접 호출(우리가 만든 루프)</span>
+      </div>
+      <span class="arrow a4">→</span>
+    </div>
+    <div class="stage">
+      <div class="label">⑤ 상태</div>
+      <div class="body">
+        <span class="v local">메모리(방별 세션+락) + Supabase</span>
+        <span class="v workers">메모리 안 남음 → <b>Supabase / DO</b>에 저장</span>
+      </div>
+    </div>
+  </div>
+  <p class="caption" id="flowcap"></p>
+  <button class="replay" onclick="replay()">▶ 흐름 다시 재생</button>
+
+  <!-- 능력 비교 -->
+  <h2><span class="n">2</span> 무엇이 되고, 무엇이 안 되나</h2>
+  <table class="cmp">
+    <thead><tr><th>능력</th><th class="local">로컬 (CLI)</th><th class="workers">Workers (API)</th></tr></thead>
+    <tbody>
+      <tr><td class="feat">서브프로세스 실행</td><td class="col local"><span class="yes">가능</span></td><td class="col workers"><span class="no">불가</span> (샌드박스)</td></tr>
+      <tr><td class="feat">공식 Claude Agent SDK</td><td class="col local"><span class="yes">가능</span> (CLI 번들)</td><td class="col workers"><span class="no">불가</span> → Messages API 직접</td></tr>
+      <tr><td class="feat">CLI/구독 인증</td><td class="col local"><span class="yes">가능</span> (비용 절감)</td><td class="col workers"><span class="no">불가</span> → API 키</td></tr>
+      <tr><td class="feat">인메모리 방 세션·락</td><td class="col local"><span class="yes">가능</span> (한 프로세스)</td><td class="col workers"><span class="no">안 남음</span> → Durable Object</td></tr>
+      <tr><td class="feat">상시 WebSocket</td><td class="col local"><span class="yes">직접</span></td><td class="col workers">Durable Object로</td></tr>
+      <tr><td class="feat">파일시스템</td><td class="col local"><span class="yes">있음</span></td><td class="col workers"><span class="no">없음</span></td></tr>
+      <tr><td class="feat">전세계 엣지 배포</td><td class="col local"><span class="no">아니오</span></td><td class="col workers"><span class="yes">예</span> (CDN 옆)</td></tr>
+      <tr><td class="feat">유휴 시 비용 0</td><td class="col local"><span class="no">아니오</span> (상시 가동)</td><td class="col workers"><span class="yes">예</span> (요청당)</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 코드 매핑 -->
+  <h2><span class="n">3</span> 우리 코드는 어떻게 갈리나</h2>
+  <p class="caption">같은 <code>AgentRunner</code> 인터페이스 뒤에서, <code>Backend</code> 옵션이 구현을 고릅니다. 봇 행동을 정하는 <code>ToolSpec</code>·시스템 프롬프트는 양쪽이 공유합니다.</p>
+  <div class="map">
+    <div class="card" id="card-local">
+      <div class="role">로컬 · BACKEND=cli</div>
+      <div class="cls">CliAgentRunner</div>
+      <div class="desc">Agent SDK로 <code>claude-code</code> CLI(구독)를 띄워 실행. 서브프로세스가 필요해 Workers에선 불가.</div>
+    </div>
+    <div class="mid">같은 인터페이스<br>▸ run_turn(prompt)</div>
+    <div class="card" id="card-workers">
+      <div class="role">서버리스 · BACKEND=api</div>
+      <div class="cls">ApiAgentRunner</div>
+      <div class="desc">Messages API로 툴 루프를 직접 실행. 서브프로세스가 없어 Workers·Fly 어디든 동작.</div>
+    </div>
+  </div>
+  <div class="iface">interface AgentRunner · ToolSpec · system prompt &nbsp;—&nbsp; 양쪽이 공유</div>
+
+  <!-- 왜 -->
+  <h2><span class="n">4</span> 핵심은 두 가지</h2>
+  <div class="why">
+    <div class="callout"><b>① 서브프로세스</b><br>공식 Agent SDK는 <code>claude-code</code> 바이너리를 <b>서브프로세스로 띄웁니다</b>. Workers는 샌드박스라 프로세스를 못 띄웁니다. 그래서 Workers에선 SDK를 못 쓰고 <b>API를 직접</b> 부릅니다. (Python Workers도 마찬가지 — 언어 문제가 아니라 런타임 문제)</div>
+    <div class="callout"><b>② 상태(state)</b><br>로컬은 <b>한 프로세스 메모리</b>에 방별 세션과 락을 들고 있습니다. Workers의 isolate는 요청마다 생겼다 사라져 메모리가 안 남습니다. 그래서 상태는 <b>Supabase</b>로 빼거나, 방별 코디네이션은 <b>Durable Object</b>(객체=방, 단일 스레드라 락이 공짜)로 옮깁니다.</div>
+  </div>
+
+  <footer>
+    이 문서는 우리 백엔드 기준의 비교입니다. 두 모드 모두 같은 <code>AgentRunner</code>/<code>ToolSpec</code>을 공유하므로, 배포 타깃은 나중에 바꿔도 코드 대부분은 그대로입니다. · 토글로 모드를 전환해 보세요.
+  </footer>
+
+</div>
+<script>
+  function setMode(m){
+    document.body.className = 'mode-' + m;
+    document.getElementById('btn-local').setAttribute('aria-pressed', m==='local');
+    document.getElementById('btn-workers').setAttribute('aria-pressed', m==='workers');
+    document.getElementById('card-local').classList.toggle('active', m==='local');
+    document.getElementById('card-workers').classList.toggle('active', m==='workers');
+    document.getElementById('modehint').innerHTML = m==='local'
+      ? '지금: <b>로컬 (CLI 모드)</b> — 내 머신/DGX의 상시 프로세스 + 구독 CLI. 개발용.'
+      : '지금: <b>Cloudflare Workers (API 모드)</b> — 엣지의 무상태 isolate + Claude API 직접. 운영용.';
+    document.getElementById('flowcap').textContent = m==='local'
+      ? '상시 프로세스가 연결·세션·락을 들고, CLI 서브프로세스로 Claude를 부른다.'
+      : '엣지 isolate가 요청마다 떠서 Claude API를 직접 부른다. 연결·상태는 Durable Object/Supabase로.';
+    replay();
+  }
+  function replay(){
+    const f = document.getElementById('flow');
+    f.classList.remove('run'); void f.offsetWidth; f.classList.add('run');
+  }
+  setMode('local');
+</script>
+</body>
+</html>

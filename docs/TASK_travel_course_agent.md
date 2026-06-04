@@ -1,7 +1,7 @@
 # 여행 코스 에이전트 서비스 — Claude Code 작업 명세
 
-> 목적: 여행자 단톡방에 참여해 코스 추천·동선 검증·Q&A를 해주는 에이전트 서비스.
-> Claude Agent SDK(Python) 기반. CLI(구독)/API(키) 두 실행 경로를 모두 지원.
+> 목적: 여행자들이 모인 방에서 일정 추천·동선 검증·Q&A를 해주는 에이전트 서비스.
+> Python 백엔드. 두 실행 모드: API(Messages API 직접, 서버리스·권위 구현) / CLI(Agent SDK·구독, 로컬).
 > 이 문서만 읽고 새 세션에서 작업을 시작할 수 있도록 작성됨.
 
 ---
@@ -33,9 +33,10 @@
 
 - **채팅 표면 = 자체 웹앱 방.** 외부 메신저(카카오톡) 단톡방 연동 아님 — 카드 UI 제어·네트워크효과 트레이드오프 끝에 자체 웹앱 선택.
 - **배포 = 폐쇄 베타(API 소수 초대), `BACKEND=api`.** 약관상 외부 출시는 API 필수. 과금/정식 쿼터는 외부 공개 시점으로 미룸.
+- **LLM 실행 = Messages API 직접(권위 구현, `ApiAgentRunner`) + cli/api 실행 모드 토글.** (2026-06-04 갱신) 공식 Claude Agent SDK는 로컬/구독(CLI) 경로에서만(`CliAgentRunner`). Messages API 경로는 서브프로세스가 없어 서버리스(Workers/Fly)에 자유롭게 배포된다. → 2절 표의 "Agent SDK" 항목은 이 결정으로 대체됨.
 - **응답 트리거 = 명시적 호출만**(@봇 멘션 + 슬래시 커맨드). "질문 감지" 자동 트리거 폐기 — 다자간 방 오발동·매-메시지 분류 비용 회피. 게이트 A(응답 여부, 결정적·무료)와 게이트 B(단순/작업 라우팅, 호출된 메시지에만)를 분리.
 - **영속화 = 앱 상태(Supabase)가 진실의 원천.** SDK 세션은 휘발성 캐시. 재시작·방 재오픈 시 새 세션에 상태 스냅샷+방 요약 주입으로 재구성(SDK session resume에 의존하지 않음 → 멀티 인스턴스·비용 상한 안전).
-- **선호 저장 = 구조화 테이블만.** pgvector·그룹 취향 임베딩은 v1 보류(데이터 규모 작아 직접 주입으로 충분).
+- **선호 저장 = 구조화 테이블만.** pgvector·그룹 선호 임베딩은 v1 보류(데이터 규모 작아 직접 주입으로 충분).
 - **의사결정 = 방장 단독 확정.** 투표는 v1 보류. 선호는 개인 단위 취향 신호로 별도.
 - **일정 데이터 모델 = 방당 단일 "작업 중 일정" + 확정 스냅샷.** 경쟁하는 명명된 대안(A/B/C) 두지 않음.
 - **동선 = 결정적 알고리즘(Kakao Mobility 소요시간 → NN+2-opt 등) + LLM 후처리(영업시간·식사시간·선호 등 소프트 제약).** LLM이 방문 순서를 직접 발명하지 않음(TSP 약점 회피).
@@ -43,9 +44,15 @@
 
 ---
 
-## 3. 이미 작성된 코드 — `agent_backend.py`
+## 3. LLM 실행 계층 (SDK seam 정리 완료, 2026-06-04)
 
-CLI/API 두 경로를 추상화한 백엔드 골격이 **이미 존재**한다. 새로 만들지 말고 이 위에 쌓을 것.
+옛 골격 `agent_backend.py`는 **은퇴(삭제)** 했다. 실행 계층은 다음으로 일원화됨:
+- `mode.Backend` — 실행 모드(api/cli)
+- `api_runner.ApiAgentRunner` / `ApiClassifier` — **Messages API 직접**(권위 구현, SDK 없음)
+- `cli_runner.CliAgentRunner` — Agent SDK/구독(로컬, 유일하게 남은 SDK seam)
+- `runner.build_agent_runner(Backend, ...)` — 모드별 분기. 두 구현은 `ToolSpec`·system 프롬프트를 공유.
+
+아래 옛 `Backend`/`AgentConfig`/`run_once`/`AgentSession` 설명은 **역사적 참고용**(코드는 제거됨).
 
 핵심 API:
 - `Backend` enum — `API`(키 인증, 제품용) / `CLI`(로컬 claude 바이너리, 구독). `Backend.from_env()`로 `BACKEND` 환경변수 읽음.
