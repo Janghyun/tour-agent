@@ -29,7 +29,9 @@ async def test_build_fills_coords_orders_and_times():
     day = card["days"][0]
     assert all(i.get("x") and i.get("y") for i in day["items"])  # 좌표 채움
     assert [i["time"] for i in day["items"]] == sorted(i["time"] for i in day["items"])  # 시간 오름차순
-    assert {i["name"] for i in day["items"]} == {"우도", "성산일출봉", "돈사돈"}
+    names = [i["name"] for i in day["items"]]
+    assert {"우도", "성산일출봉", "돈사돈"} <= set(names)
+    assert names[-1].endswith("체크인")  # 첫날 숙소 체크인은 동선 마지막
 
 
 async def test_build_uses_route_finder_for_travel():

@@ -98,6 +98,26 @@ async def build_itinerary(plan, *, place_finder, route_finder=None, start_hour: 
             t += _STAY_MIN
             prev = (p.x, p.y)
 
+        # 첫날은 숙소 체크인을 동선의 마지막에 코드가 직접 붙인다(숙소가 출발이 아님).
+        if is_first and acc_p is not None and near(acc_p):
+            travel = ""
+            if route_finder is not None and prev is not None:
+                try:
+                    r = await route_finder(prev, (acc_p.x, acc_p.y))
+                    mins = round(r.duration_s / 60)
+                    travel = f"차 약 {mins}분"
+                    t += mins
+                except Exception:  # noqa: BLE001
+                    pass
+            items_out.append({
+                "name": f"{acc_name} 체크인" if acc_name else "숙소 체크인",
+                "time": _hhmm(t),
+                "category": "숙소",
+                "x": acc_p.x, "y": acc_p.y, "place_url": acc_p.place_url,
+                "travel_from_prev": travel,
+                "alternatives": [],
+            })
+
         # 좌표를 못 찾은 항목은 동선에서 빼고 이름만 뒤에 둔다(지도엔 안 찍힘).
         for it in unlocated:
             items_out.append({
