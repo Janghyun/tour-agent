@@ -14,7 +14,7 @@ from typing import Awaitable, Callable
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
-from .actions import ActionError, apply_action
+from .actions import ActionError, add_candidate_by_query, apply_action
 from .groupchat import AgentRunner, Message, Room
 from .state import itinerary_card_to_places, state_view
 
@@ -86,7 +86,7 @@ class RoomHub:
 
 
 def create_app(
-    agent_factory: AgentFactory, *, store=None, debounce_seconds: float = 1.5
+    agent_factory: AgentFactory, *, store=None, debounce_seconds: float = 1.5, place_finder=None
 ) -> FastAPI:
     app = FastAPI()
     hub = RoomHub(agent_factory, store=store, debounce_seconds=debounce_seconds)
@@ -126,6 +126,22 @@ def create_app(
                     await hub.broadcast_json(
                         room_id, {"speaker": speaker, "text": text}
                     )
+                    # /후보 <장소명> — 봇(LLM) 안 거치고 즉시 Kakao 검색→후보 등록.
+                    stripped = text.strip()
+                    if stripped.startswith("/후보"):
+                        query = stripped[len("/후보"):].strip()
+                        if store is None or place_finder is None:
+                            await hub.broadcast_json(room_id, {"speaker": "시스템", "type": "error", "text": "장소 검색이 비활성이에요(검색 키 없음)."})
+                        elif not query:
+                            await hub.broadcast_json(room_id, {"speaker": "봇", "text": "등록할 장소명을 알려 주세요. 예) /후보 성산일출봉"})
+                        else:
+                            try:
+                                place = await add_candidate_by_query(store, room_id, query, place_finder=place_finder, emit_state=emit_state)
+                            except Exception:  # noqa: BLE001 - 검색 실패는 사용자에게 안내
+                                place = None
+                            txt = f"‘{place.name}’을(를) 후보에 담았어요." if place else f"‘{query}’ 검색 결과가 없어요. 다른 이름으로 시도해 보세요."
+                            await hub.broadcast_json(room_id, {"speaker": "봇", "text": txt})
+                        continue
                     await room.post(Message(speaker=speaker, text=text))
         except WebSocketDisconnect:
             hub.remove(room_id, ws)

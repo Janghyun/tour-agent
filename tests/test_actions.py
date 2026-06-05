@@ -46,6 +46,44 @@ async def test_confirm_requires_owner():
         await _run(store, "r", {"action": "confirm_itinerary", "by": "영희"})
 
 
+async def test_add_candidate_by_query_uses_finder():
+    from tour_agent.actions import add_candidate_by_query
+    from tour_agent.kakao import Place
+
+    store = InMemoryStateStore()
+    seen = []
+
+    async def finder(q):
+        assert q == "성산일출봉"
+        return [Place("1", "성산일출봉", "명소", "", "", 126.94, 33.46, "")]
+
+    async def emit_state(v):
+        seen.append(v)
+
+    place = await add_candidate_by_query(store, "r", "성산일출봉", place_finder=finder, emit_state=emit_state)
+
+    assert place.name == "성산일출봉"
+    state = await store.load("r")
+    assert [c.name for c in state.candidates] == ["성산일출봉"]
+    assert state.candidates[0].x == 126.94  # 좌표까지 등록
+    assert seen[-1]["candidates"][0]["name"] == "성산일출봉"
+
+
+async def test_add_candidate_by_query_no_result_returns_none():
+    from tour_agent.actions import add_candidate_by_query
+
+    store = InMemoryStateStore()
+
+    async def finder(q):
+        return []
+
+    async def emit_state(v):
+        pass
+
+    place = await add_candidate_by_query(store, "r", "없는곳", place_finder=finder, emit_state=emit_state)
+    assert place is None
+
+
 async def test_unknown_action_raises():
     store = InMemoryStateStore()
     with pytest.raises(ActionError):

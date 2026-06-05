@@ -33,6 +33,25 @@ def _place_from(d: dict) -> Place:
     )
 
 
+async def add_candidate_by_query(
+    store: StateStore, room_id: str, query: str, *, place_finder, emit_state: EmitState
+):
+    """장소명(또는 링크에서 얻은 이름)을 검색해 첫 결과를 후보로 등록한다(좌표 포함).
+
+    ``place_finder(query) -> list[Place]`` 를 주입한다(프로덕션=Kakao 키워드 검색).
+    결과가 없으면 None을 반환하고 아무것도 바꾸지 않는다.
+    """
+    results = await place_finder(query)
+    if not results:
+        return None
+    place = results[0]
+    state = await store.load(room_id)
+    state.add_candidate(place)
+    await store.save(state)
+    await emit_state(state_view(state))
+    return place
+
+
 async def apply_action(
     store: StateStore, room_id: str, action: dict, *, emit_state: EmitState
 ) -> None:
