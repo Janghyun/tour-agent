@@ -72,8 +72,35 @@ export function PlaceOptionsCard({ card, addedIds, onAdd }) {
   );
 }
 
+// 일정 카드 안 미니맵 — 항목 좌표로 번호 핀 + 동선(점선). 좌표가 2곳 미만이면 생략.
+function ItinMiniMap({ stops }) {
+  const pts = stops.filter((s) => s.x && s.y).map((s) => ({ name: s.name, x: +s.x, y: +s.y, cat: catKey(s.category) }));
+  if (pts.length < 2) return null;
+  const W = 100, H = 58, pad = 12;
+  const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const nx = (v) => (maxX === minX ? W / 2 : pad + ((v - minX) / (maxX - minX)) * (W - 2 * pad));
+  const ny = (v) => (maxY === minY ? H / 2 : pad + ((maxY - v) / (maxY - minY)) * (H - 2 * pad));
+  const co = pts.map((p) => [nx(p.x), ny(p.y)]);
+  return (
+    <div style={{ position: "relative", marginBottom: 12 }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 150, display: "block", background: "linear-gradient(160deg,#DCEEF6,#EAF3EC)", borderRadius: 10 }} role="img" aria-label={`동선 지도: ${pts.map((p) => p.name).join(" 다음 ")}`}>
+        <polyline points={co.map((c) => c.join(",")).join(" ")} fill="none" stroke="var(--accent)" strokeWidth="1.3" strokeDasharray="2.4 2.4" strokeLinecap="round" strokeLinejoin="round" />
+        {pts.map((p, i) => (
+          <g key={i}>
+            <circle cx={co[i][0]} cy={co[i][1]} r="4.6" fill={(CAT[p.cat] || CAT.sight).bg} stroke="#fff" strokeWidth="1.3" />
+            <text x={co[i][0]} y={co[i][1] + 1.7} textAnchor="middle" fontSize="4.6" fontWeight="700" fill="#fff">{i + 1}</text>
+          </g>
+        ))}
+      </svg>
+      <span style={{ position: "absolute", left: 8, bottom: 6, fontSize: 10.5, color: "var(--ink-3)", background: "rgba(255,255,255,.7)", borderRadius: 6, padding: "1px 6px" }}>번호 = 방문 순서</span>
+    </div>
+  );
+}
+
 export function ItineraryCard({ card, confirmed }) {
   const days = card.days || [];
+  const allStops = days.flatMap((d) => d.items || []);
   return (
     <div className="card pop-in">
       <div className="card-head">
@@ -87,6 +114,7 @@ export function ItineraryCard({ card, confirmed }) {
           ? <span className="status-dot confirmed"><Icon.check s={13} /> 확정됨</span>
           : <span className="status-dot draft"><Icon.calendar s={12} /> 작업 중</span>}
       </div>
+      <ItinMiniMap stops={allStops} />
       <div className="tl">
         {days.map((d, di) => (
           <div className="tl-day" key={di}>

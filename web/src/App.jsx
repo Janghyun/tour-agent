@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { connectRoom } from "./ws.js";
 import { Icon } from "./icons.jsx";
-import { ChatArea, Composer } from "./chat.jsx";
+import { ChatArea, Composer, Guide } from "./chat.jsx";
 import { LobbyScreen, CreateRoomModal, JoinRoomModal } from "./lobby.jsx";
 import { SidePanel } from "./panel.jsx";
 import { loadMe, saveMe, loadRooms, rememberRoom, forgetRoom, makeRoomCode } from "./rooms.js";
@@ -88,6 +88,8 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
   const [msgs, setMsgs] = useState([]);
   const [state, setState] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [pending, setPending] = useState(false); // 봇 응답 대기 중(타이핑 인디케이터)
+  const [showGuide, setShowGuide] = useState(false);
   const connRef = useRef(null);
   const keyRef = useRef(0);
 
@@ -104,10 +106,10 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
         }
       },
       onClose: () => setStatus("연결 끊김"),
-      onText: (m) => push({ author: m.speaker, text: m.text }),
-      onCard: (card) => push({ card }),
+      onText: (m) => { if (m.speaker === "봇") setPending(false); push({ author: m.speaker, text: m.text }); },
+      onCard: (card) => { setPending(false); push({ card }); },
       onState: (s) => setState(s),
-      onError: (t) => push({ author: "시스템", text: "⚠ " + t }),
+      onError: (t) => { setPending(false); push({ author: "시스템", text: "⚠ " + t }); },
     });
     connRef.current = conn;
     return () => conn.close();
@@ -122,6 +124,13 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
   const confirm = () => connRef.current?.sendAction({ action: "confirm_itinerary", by: me });
   const toggleLike = (id) => connRef.current?.sendAction({ action: "set_preference", traveler: me, target: id, sentiment: "like" });
   const toggleDislike = (id) => connRef.current?.sendAction({ action: "set_preference", traveler: me, target: id, sentiment: "dislike" });
+
+  // 봇을 부르는 메시지(@봇 또는 슬래시)면 응답 대기 표시를 켠다(백엔드 트리거 판정과 동일).
+  const handleSend = (text) => {
+    connRef.current?.sendChat(me, text);
+    const t = (text || "").trimStart();
+    if (t.includes("@봇") || t.startsWith("/")) setPending(true);
+  };
 
   const [tab, setTab] = useState("cand");
   const [selectedId, setSelectedId] = useState(null);
@@ -183,6 +192,7 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
         <button onClick={copyCode} style={{ ...S.ghostBtn }} title="방 코드 복사">
           <Icon.send s={13} /> {copied ? "복사됨" : `코드 ${room}`}
         </button>
+        <button onClick={() => setShowGuide(true)} style={{ ...S.ghostBtn, padding: "5px 10px", fontWeight: 800 }} title="여행봇 사용법">?</button>
         <span style={{ marginLeft: "auto", fontSize: 12.5, color: status === "연결됨" ? "var(--accent)" : "var(--ink-3)" }}>● {status}</span>
         {isMobile && (
           <button onClick={() => setPanelOpen((o) => !o)} style={{ ...S.ghostBtn }} title="여행 패널">
@@ -195,8 +205,9 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
         {!(isMobile && panelOpen) && (
           <ChatArea
             messages={msgs}
+            pending={pending}
             ctx={{ me, addedIds, onAdd: addCandidate, confirmed: state?.confirmed }}
-            composer={<Composer onSend={(text) => connRef.current?.sendChat(me, text)} />}
+            composer={<Composer onSend={handleSend} />}
           />
         )}
 
@@ -217,6 +228,15 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
           />
         )}
       </div>
+
+      {showGuide && (
+        <div onClick={() => setShowGuide(false)} style={{ position: "fixed", inset: 0, background: "rgba(20,18,15,.45)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ maxHeight: "90vh", overflowY: "auto", width: "100%", maxWidth: 580 }}>
+            <Guide />
+            <button onClick={() => setShowGuide(false)} style={{ ...S.btn, width: "100%", justifyContent: "center", marginTop: 10, padding: "10px 0" }}>닫기</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

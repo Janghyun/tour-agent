@@ -109,13 +109,12 @@ def room_snapshot(state: RoomState) -> str:
     if state.accommodations:
         parts.append("숙소: " + ", ".join(a.name for a in state.accommodations))
     if state.candidates:
-        parts.append(
-            "후보 장소: "
-            + ", ".join(
-                f"{c.name}({c.category})" if c.category else c.name
-                for c in state.candidates
-            )
-        )
+
+        def _cand(c):
+            base = f"{c.name}({c.category})" if c.category else c.name
+            return base + (f" @{c.x:.5f},{c.y:.5f}" if c.x and c.y else "")
+
+        parts.append("후보 장소: " + ", ".join(_cand(c) for c in state.candidates))
     if state.confirmed_itinerary:
         parts.append(
             "확정 일정: " + " -> ".join(p.name for p in state.confirmed_itinerary)

@@ -100,3 +100,11 @@ def test_room_snapshot_includes_candidate_pool():
     snap = room_snapshot(s)
     # 봇이 '담은 후보로' 일정을 짜려면 후보 풀이 스냅샷에 보여야 한다.
     assert "돈사돈" in snap and "우진해장국" in snap
+
+
+def test_room_snapshot_includes_candidate_coords():
+    s = RoomState(room_id="r")
+    s.add_candidate(Place("1", "돈사돈", "흑돼지", "", "", 126.47, 33.47, ""))
+    snap = room_snapshot(s)
+    # 좌표가 있으면 스냅샷에 포함돼야 봇이 일정 항목·지도에 그대로 넣을 수 있다.
+    assert "126.47" in snap and "33.47" in snap

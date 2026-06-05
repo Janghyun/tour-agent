@@ -63,23 +63,78 @@ function Message({ m, ctx }) {
   );
 }
 
-export function ChatArea({ messages, ctx, composer }) {
+const GUIDE_STEPS = [
+  { n: 1, t: "봇에게 장소 검색", d: "‘봇 부르기’를 켜고 보내거나 @봇 / /검색 — 예) @봇 성산 근처 흑돼지" },
+  { n: 2, t: "카드에서 ‘추가’", d: "마음에 드는 곳을 추가하면 방 전체가 함께 보는 후보 풀에 담겨요" },
+  { n: 3, t: "더 받고 견주기", d: "/추천 으로 더 찾고, /비교 로 한 끼의 대안 2~3곳을 나란히 비교" },
+  { n: 4, t: "일정 만들기", d: "후보가 모이면 /일정 — 숙소·동선을 고려해 하루 일정 카드를 짜 줘요" },
+  { n: 5, t: "방장이 확정", d: "/확정 으로 작업 중 일정을 확정 일정으로 고정(방장만)" },
+];
+
+export function Guide({ compact = false }) {
+  return (
+    <div className="guide-card" style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "var(--r)", padding: 16, boxShadow: compact ? "none" : "var(--sh-1)", maxWidth: 560, margin: compact ? 0 : "10px auto" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <span style={{ color: "var(--accent)", display: "flex" }}><Icon.bot s={20} /></span>
+        <strong style={{ fontSize: 15 }}>여행봇 사용법</strong>
+      </div>
+      <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.5, marginBottom: 12 }}>
+        여러 명이 한 방에서 봇을 불러 장소를 모으고, 봇이 동선·숙소를 고려해 일정을 짜 줍니다. 봇은 <b>직접 부를 때만</b> 답해요.
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+        {GUIDE_STEPS.map((s) => (
+          <div key={s.n} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <span style={{ width: 22, height: 22, flex: "none", borderRadius: "50%", background: "var(--accent-50)", color: "var(--accent-700)", fontSize: 12, fontWeight: 800, display: "grid", placeItems: "center" }}>{s.n}</span>
+            <div>
+              <div style={{ fontSize: 13.5, fontWeight: 700 }}>{s.t}</div>
+              <div style={{ fontSize: 12.5, color: "var(--ink-3)" }}>{s.d}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-3)", marginBottom: 6 }}>슬래시 커맨드</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {SLASH.map((s) => (
+            <div key={s.k} style={{ display: "flex", gap: 8, fontSize: 12.5 }}>
+              <span className="cmd" style={{ flex: "none", minWidth: 48 }}>{s.k}</span>
+              <span style={{ color: "var(--ink-3)" }}>{s.d}{s.host ? " (방장)" : ""}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TypingBubble() {
+  return (
+    <div className="msg bot fade-in">
+      <div className="ava"><Icon.bot s={18} /></div>
+      <div className="body-col">
+        <div className="who"><span className="name">여행봇</span><span className="bot-tag">BOT</span></div>
+        <div className="bubble bot typing-bubble" aria-label="여행봇이 응답을 준비하고 있어요">
+          <span className="typing-dot"></span><span className="typing-dot"></span><span className="typing-dot"></span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ChatArea({ messages, pending, ctx, composer }) {
   const ref = useRef(null);
   useEffect(() => {
     const el = ref.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages.length]);
+  }, [messages.length, pending]);
   return (
     <div className="chat-col">
       <div className="chat-scroll scroll" ref={ref}>
         <div className="chat-inner">
           <div className="day-divider"><span className="ln"></span><span className="lbl">오늘</span><span className="ln"></span></div>
-          {messages.length === 0 && (
-            <div className="note" style={{ textAlign: "center", margin: "20px 0" }}>
-              봇 부르기 또는 <span className="cmd">/검색</span>으로 장소를 찾고, <span className="cmd">/일정</span>으로 일정을 만들어 보세요.
-            </div>
-          )}
+          {messages.length === 0 && <Guide />}
           {messages.map((m) => <Message key={m._k} m={m} ctx={ctx} />)}
+          {pending && <TypingBubble />}
         </div>
       </div>
       {composer}
