@@ -61,6 +61,7 @@ ITINERARY_SCHEMA = {
                                 "category": {"type": "string"},
                                 "x": {"type": "number"},
                                 "y": {"type": "number"},
+                                "place_url": {"type": "string"},
                                 "travel_from_prev": {"type": "string"},
                             },
                             "required": ["name"],
@@ -130,12 +131,50 @@ MAP_SCHEMA = {
 }
 
 
-def present_tools(emit: CardSink) -> list[ToolSpec]:
-    """방의 카드 싱크(emit)에 묶인 present_* ToolSpec들을 만든다."""
+async def _enrich_itinerary(card: dict, place_finder) -> None:
+    """일정 카드의 각 항목을 실제 검색해 좌표·링크를 채운다(봇이 지어낸 좌표 대신 실데이터).
+
+    이름으로 첫 검색 결과를 쓴다. 병렬 처리. 검색 실패/무결과 항목은 그대로 둔다.
+    """
+    import asyncio
+
+    items = [
+        it
+        for day in card.get("days", [])
+        for it in day.get("items", [])
+        if isinstance(it, dict) and it.get("name")
+    ]
+
+    async def fill(it: dict) -> None:
+        try:
+            results = await place_finder(it["name"])
+        except Exception:  # noqa: BLE001 - 개별 실패는 무시(그 항목만 좌표 없음)
+            return
+        if not results:
+            return
+        p = results[0]
+        it["x"], it["y"] = p.x, p.y
+        if not it.get("place_url"):
+            it["place_url"] = p.place_url
+        if not it.get("category"):
+            it["category"] = p.category
+
+    if items:
+        await asyncio.gather(*(fill(it) for it in items))
+
+
+def present_tools(emit: CardSink, *, place_finder=None) -> list[ToolSpec]:
+    """방의 카드 싱크(emit)에 묶인 present_* ToolSpec들을 만든다.
+
+    ``place_finder`` 가 주어지면 일정 카드의 각 장소를 실제 검색해 좌표·링크를 보강한다.
+    """
 
     def _card_tool(name: str, card_type: str, description: str, schema: dict) -> ToolSpec:
         async def handler(args: dict) -> str:
-            await emit({"type": card_type, **args})
+            card = {"type": card_type, **args}
+            if card_type == "itinerary" and place_finder is not None:
+                await _enrich_itinerary(card, place_finder)
+            await emit(card)
             return f"{card_type} 카드를 표시했습니다."
 
         return ToolSpec(name, description, schema, handler)

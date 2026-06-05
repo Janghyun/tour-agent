@@ -1,5 +1,6 @@
 /* 봇 카드 컴포넌트 — 디자인 프로토타입에서 포팅, 백엔드 present_* 페이로드로 구동.
  * styles.css의 .card/.place-row/.tl 등 디자인 클래스를 사용. 카테고리는 catKey로 정규화. */
+import { useState } from "react";
 import { Icon } from "./icons.jsx";
 import { CAT, catKey, shade } from "./constants.js";
 
@@ -80,9 +81,10 @@ export function PlaceOptionsCard({ card, addedIds, onAdd }) {
   );
 }
 
-// 일정 카드 안 미니맵 — 항목 좌표로 번호 핀 + 동선(점선). 좌표가 2곳 미만이면 생략.
+// 일정 카드 안 미니맵 — 항목 좌표로 번호 핀 + 동선(점선). 번호를 누르면 장소 정보. 좌표 2곳 미만이면 생략.
 function ItinMiniMap({ stops }) {
-  const pts = stops.filter((s) => s.x && s.y).map((s) => ({ name: s.name, x: +s.x, y: +s.y, cat: catKey(s.category) }));
+  const [sel, setSel] = useState(null);
+  const pts = stops.filter((s) => s.x && s.y).map((s) => ({ name: s.name, x: +s.x, y: +s.y, cat: catKey(s.category), category: s.category, place_url: s.place_url }));
   if (pts.length < 2) return null;
   const W = 100, H = 58, pad = 12;
   const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
@@ -90,25 +92,36 @@ function ItinMiniMap({ stops }) {
   const nx = (v) => (maxX === minX ? W / 2 : pad + ((v - minX) / (maxX - minX)) * (W - 2 * pad));
   const ny = (v) => (maxY === minY ? H / 2 : pad + ((maxY - v) / (maxY - minY)) * (H - 2 * pad));
   const co = pts.map((p) => [nx(p.x), ny(p.y)]);
+  const s = sel != null ? pts[sel] : null;
   return (
     <div style={{ position: "relative", marginBottom: 12 }}>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 150, display: "block", background: "linear-gradient(160deg,#DCEEF6,#EAF3EC)", borderRadius: 10 }} role="img" aria-label={`동선 지도: ${pts.map((p) => p.name).join(" 다음 ")}`}>
         <polyline points={co.map((c) => c.join(",")).join(" ")} fill="none" stroke="var(--accent)" strokeWidth="1.3" strokeDasharray="2.4 2.4" strokeLinecap="round" strokeLinejoin="round" />
         {pts.map((p, i) => (
-          <g key={i}>
-            <circle cx={co[i][0]} cy={co[i][1]} r="4.6" fill={(CAT[p.cat] || CAT.sight).bg} stroke="#fff" strokeWidth="1.3" />
-            <text x={co[i][0]} y={co[i][1] + 1.7} textAnchor="middle" fontSize="4.6" fontWeight="700" fill="#fff">{i + 1}</text>
+          <g key={i} onClick={() => setSel(sel === i ? null : i)} style={{ cursor: "pointer" }}>
+            <circle cx={co[i][0]} cy={co[i][1]} r={sel === i ? 5.8 : 4.6} fill={(CAT[p.cat] || CAT.sight).bg} stroke="#fff" strokeWidth={sel === i ? 1.8 : 1.3} />
+            <text x={co[i][0]} y={co[i][1] + 1.7} textAnchor="middle" fontSize="4.6" fontWeight="700" fill="#fff" style={{ pointerEvents: "none" }}>{i + 1}</text>
           </g>
         ))}
       </svg>
-      <span style={{ position: "absolute", left: 8, bottom: 6, fontSize: 10.5, color: "var(--ink-3)", background: "rgba(255,255,255,.7)", borderRadius: 6, padding: "1px 6px" }}>번호 = 방문 순서</span>
+      <span style={{ position: "absolute", left: 8, bottom: 6, fontSize: 10.5, color: "var(--ink-3)", background: "rgba(255,255,255,.7)", borderRadius: 6, padding: "1px 6px" }}>번호를 누르면 장소 정보</span>
+      {s && (
+        <div style={{ position: "absolute", left: 8, right: 8, top: 8, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 10, boxShadow: "var(--sh-2)", padding: "8px 10px", display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ width: 22, height: 22, flex: "none", borderRadius: "50%", background: (CAT[s.cat] || CAT.sight).bg, color: "#fff", fontSize: 12, fontWeight: 800, display: "grid", placeItems: "center" }}>{sel + 1}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
+            <div style={{ marginTop: 2 }}><CatPill cat={s.cat} /></div>
+          </div>
+          <a href={placeLink(s)} target="_blank" rel="noreferrer" className="btn btn-soft btn-sm" style={{ flex: "none" }}><Icon.search s={13} /> 카카오맵</a>
+          <button onClick={() => setSel(null)} aria-label="닫기" style={{ flex: "none", border: "none", background: "transparent", cursor: "pointer", color: "var(--ink-3)" }}><Icon.x s={15} /></button>
+        </div>
+      )}
     </div>
   );
 }
 
 export function ItineraryCard({ card, confirmed }) {
   const days = card.days || [];
-  const allStops = days.flatMap((d) => d.items || []);
   return (
     <div className="card pop-in">
       <div className="card-head">
@@ -122,7 +135,6 @@ export function ItineraryCard({ card, confirmed }) {
           ? <span className="status-dot confirmed"><Icon.check s={13} /> 확정됨</span>
           : <span className="status-dot draft"><Icon.calendar s={12} /> 작업 중</span>}
       </div>
-      <ItinMiniMap stops={allStops} />
       <div className="tl">
         {days.map((d, di) => (
           <div className="tl-day" key={di}>
@@ -131,6 +143,7 @@ export function ItineraryCard({ card, confirmed }) {
               <span className="dl">{d.date || `Day ${di + 1}`}</span>
               {d.accommodation && <span className="ds">· 숙소 {d.accommodation}</span>}
             </div>
+            <ItinMiniMap stops={d.items || []} />
             <div className="tl-track">
               {(d.items || []).map((it, ii) => (
                 <div className="tl-stop" key={ii}>
@@ -138,7 +151,12 @@ export function ItineraryCard({ card, confirmed }) {
                   <div className="tl-card">
                     <span className="tl-time">{it.time || ""}</span>
                     <div className="tl-body">
-                      <div className="nm">{it.name} {it.category && <CatPill cat={catKey(it.category)} />}</div>
+                      <div className="nm">
+                        <a href={placeLink(it)} target="_blank" rel="noreferrer" title="카카오맵에서 보기" style={{ color: "inherit", textDecoration: "none" }}>
+                          {it.name} <Icon.search s={11} style={{ color: "var(--ink-4)", verticalAlign: "-1px" }} />
+                        </a>
+                        {it.category && <> <CatPill cat={catKey(it.category)} /></>}
+                      </div>
                       {it.travel_from_prev && <div className="sub">{it.travel_from_prev}</div>}
                     </div>
                   </div>

@@ -11,6 +11,36 @@ def test_present_tools_expose_card_types():
     assert names == {"present_place_options", "present_itinerary", "present_map", "present_compare"}
 
 
+async def test_present_itinerary_enriches_with_place_finder():
+    from tour_agent.kakao import Place
+
+    emitted = []
+
+    async def emit(card):
+        emitted.append(card)
+
+    async def finder(q):
+        return [Place("1", q, "명소", "", "addr", 126.5, 33.5, "http://k/" + q)]
+
+    tools = {t.name: t for t in present_tools(emit, place_finder=finder)}
+    await tools["present_itinerary"].handler({"days": [{"items": [{"name": "성산일출봉"}]}]})
+
+    item = emitted[0]["days"][0]["items"][0]
+    assert item["x"] == 126.5 and item["y"] == 33.5  # 실좌표로 보강
+    assert item["place_url"] == "http://k/성산일출봉"  # 실링크로 보강
+
+
+async def test_present_itinerary_without_finder_keeps_payload():
+    emitted = []
+
+    async def emit(card):
+        emitted.append(card)
+
+    tools = {t.name: t for t in present_tools(emit)}  # place_finder 없음
+    await tools["present_itinerary"].handler({"days": [{"items": [{"name": "성산"}]}]})
+    assert emitted[0]["days"][0]["items"][0] == {"name": "성산"}  # 그대로
+
+
 async def test_present_compare_emits_card_and_acks():
     emitted = []
 
