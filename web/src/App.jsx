@@ -4,7 +4,7 @@ import { Icon } from "./icons.jsx";
 import { ChatArea, Composer, Guide } from "./chat.jsx";
 import { LobbyScreen, CreateRoomModal, JoinRoomModal } from "./lobby.jsx";
 import { SidePanel } from "./panel.jsx";
-import { loadMe, saveMe, loadRooms, rememberRoom, forgetRoom, makeRoomCode } from "./rooms.js";
+import { loadMe, saveMe, loadRooms, rememberRoom, forgetRoom, makeRoomCode, loadMsgs, saveMsgs } from "./rooms.js";
 
 const _loc = typeof location !== "undefined" ? location : { search: "", hostname: "localhost" };
 const WS_BASE = import.meta.env.VITE_WS_BASE || `ws://${_loc.hostname || "localhost"}:8000`;
@@ -85,15 +85,27 @@ export default function App() {
 function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
   const [status, setStatus] = useState("연결 중…");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [msgs, setMsgs] = useState([]);
+  const [msgs, setMsgs] = useState(() => loadMsgs(room)); // 새로고침 복원
   const [state, setState] = useState(null);
   const [copied, setCopied] = useState(false);
   const [pending, setPending] = useState(false); // 봇 응답 대기 중(타이핑 인디케이터)
+  const [elapsed, setElapsed] = useState(0); // 봇 응답 경과 시간(초)
   const [showGuide, setShowGuide] = useState(false);
   const connRef = useRef(null);
-  const keyRef = useRef(0);
+  const keyRef = useRef(2_000_000); // 복원 메시지 _k와 충돌 방지(새 메시지는 큰 값부터)
 
   const push = (m) => setMsgs((xs) => [...xs, { _k: keyRef.current++, ...m }]);
+
+  // 채팅 흐름을 방별로 보관(새로고침 후 복원). 방 상태는 백엔드 영속, 채팅은 클라이언트.
+  useEffect(() => { saveMsgs(room, msgs); }, [msgs, room]);
+
+  // 봇 응답 대기 중 경과 시간 카운트.
+  useEffect(() => {
+    if (!pending) { setElapsed(0); return; }
+    const t0 = Date.now();
+    const id = setInterval(() => setElapsed(Math.round((Date.now() - t0) / 1000)), 500);
+    return () => clearInterval(id);
+  }, [pending]);
 
   useEffect(() => {
     const conn = connectRoom(`${WS_BASE}/ws/${room}`, {
@@ -208,6 +220,7 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
           <ChatArea
             messages={msgs}
             pending={pending}
+            elapsed={elapsed}
             ctx={{ me, addedIds, onAdd: addCandidate, onAddLink: addLink, confirmed: state?.confirmed }}
             composer={<Composer onSend={handleSend} />}
           />

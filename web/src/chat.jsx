@@ -130,12 +130,17 @@ export function Guide({ compact = false }) {
   );
 }
 
-function TypingBubble() {
+function TypingBubble({ elapsed }) {
   return (
     <div className="msg bot fade-in">
       <div className="ava"><Icon.bot s={18} /></div>
       <div className="body-col">
-        <div className="who"><span className="name">여행봇</span><span className="bot-tag">BOT</span></div>
+        <div className="who">
+          <span className="name">여행봇</span><span className="bot-tag">BOT</span>
+          <span style={{ fontSize: 11.5, color: "var(--ink-3)", marginLeft: 6 }}>
+            응답 준비 중{elapsed > 0 ? ` · ${elapsed}초` : ""}
+          </span>
+        </div>
         <div className="bubble bot typing-bubble" aria-label="여행봇이 응답을 준비하고 있어요">
           <span className="typing-dot"></span><span className="typing-dot"></span><span className="typing-dot"></span>
         </div>
@@ -144,7 +149,7 @@ function TypingBubble() {
   );
 }
 
-export function ChatArea({ messages, pending, ctx, composer }) {
+export function ChatArea({ messages, pending, elapsed, ctx, composer }) {
   const ref = useRef(null);
   useEffect(() => {
     const el = ref.current;
@@ -157,7 +162,7 @@ export function ChatArea({ messages, pending, ctx, composer }) {
           <div className="day-divider"><span className="ln"></span><span className="lbl">오늘</span><span className="ln"></span></div>
           {messages.length === 0 && <Guide />}
           {messages.map((m) => <Message key={m._k} m={m} ctx={ctx} />)}
-          {pending && <TypingBubble />}
+          {pending && <TypingBubble elapsed={elapsed} />}
         </div>
       </div>
       {composer}
