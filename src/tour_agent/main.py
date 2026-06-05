@@ -22,7 +22,8 @@ except ImportError:
 from .app import create_app
 from .factory import build_default_runner
 from .kakao import KakaoClient, KakaoError
-from .state import InMemoryStateStore
+from .state import InMemoryStateStore, SupabaseStateStore
+from .supabase_store import SupabaseError, SupabaseRowStore
 
 # 실행 경로: 기본 api(외부 출시), 로컬·개발은 BACKEND=cli(구독)로 키 없이 봇 구동.
 _backend = os.environ.get("BACKEND", "api").lower()
@@ -32,8 +33,25 @@ _backend = os.environ.get("BACKEND", "api").lower()
 if _backend == "cli":
     os.environ.pop("ANTHROPIC_API_KEY", None)
 
-# 진실의 원천(앱 상태). 개발 기본은 인메모리, 프로덕션은 SupabaseStateStore로 교체.
-_store = InMemoryStateStore()
+# 진실의 원천(앱 상태). SUPABASE 키 + 연결 가능하면 영속 스토어, 아니면 인메모리 fallback.
+def _make_store():
+    try:
+        rows = SupabaseRowStore.from_env()
+    except SupabaseError:
+        print("[store] 인메모리 사용(SUPABASE 키 없음)")
+        return InMemoryStateStore()
+    import asyncio
+
+    try:  # 테이블·권한 헬스체크 — 실패하면 인메모리로 안전하게 내려간다.
+        asyncio.run(rows.get("__healthcheck__"))
+    except Exception as exc:  # noqa: BLE001 - 어떤 연결 오류든 fallback
+        print(f"[store] Supabase 연결 실패 → 인메모리 fallback: {str(exc)[:140]}")
+        return InMemoryStateStore()
+    print("[store] Supabase 영속 사용")
+    return SupabaseStateStore(rows)
+
+
+_store = _make_store()
 
 # Kakao 키가 있으면 검색·동선 툴을 붙이고, 없으면 order_route(순수)만.
 try:
