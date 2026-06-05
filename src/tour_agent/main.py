@@ -63,16 +63,38 @@ try:
 except KakaoError:
     _kakao = None
 
+# 종합 검색 소스 — 키가 있는 것만 묶는다(Kakao + 네이버 + 구글). place_finder는 종합 결과.
+from .google_places import GooglePlacesClient, GooglePlacesError  # noqa: E402
+from .naver import NaverClient, NaverError  # noqa: E402
+from .search_aggregate import make_place_finder  # noqa: E402
+
+_sources = []
+if _kakao is not None:
+    _sources.append(_kakao)
+try:
+    _sources.append(NaverClient.from_env())
+    print("[검색] 네이버 소스 추가")
+except NaverError:
+    pass
+try:
+    _sources.append(GooglePlacesClient.from_env())
+    print("[검색] 구글 소스 추가")
+except GooglePlacesError:
+    pass
+_agg_finder = make_place_finder(_sources) if _sources else None
+print(f"[검색] 종합 소스 {len(_sources)}개")
+
 # 방마다: 그룹챗 코어 -> 라우팅 게이트(단순/작업 + 스냅샷 + 예산) -> LLM 러너.
 # emit_card는 방의 카드 브로드캐스트 — 작업 경로의 present_* 툴이 이걸로 카드를 내보낸다.
-# /후보·링크 등록용 장소 검색기(Kakao 키워드 검색). 키 없으면 비활성.
-_place_finder = (lambda q: _kakao.keyword_search(q)) if _kakao is not None else None
+# /후보·링크 등록·일정 좌표 보강에 쓰는 검색기 — 종합 검색(여러 소스). 없으면 비활성.
+_place_finder = _agg_finder
 # 링크 '후보 등록' 버튼: URL에서 장소명을 뽑아 검색에 넘긴다.
 from .link_resolver import resolve_place_name as _url_resolver  # noqa: E402
 
 app = create_app(
     agent_factory=lambda room_id, emit_card: build_default_runner(
-        room_id, _store, backend=_backend, emit_card=emit_card, kakao_client=_kakao
+        room_id, _store, backend=_backend, emit_card=emit_card, kakao_client=_kakao,
+        place_finder=_agg_finder,
     ),
     store=_store,
     place_finder=_place_finder,

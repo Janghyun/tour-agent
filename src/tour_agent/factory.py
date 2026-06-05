@@ -54,6 +54,7 @@ def build_default_runner(
     model_client=None,
     emit_card=None,
     kakao_client=None,
+    place_finder=None,
 ) -> RoutingAgentRunner:
     """프로덕션 기본 합성 — 분류기 + 단순/작업 러너 + 예산 캡.
 
@@ -78,7 +79,8 @@ def build_default_runner(
         else [order_route_toolspec()]
     )
     # 일정 카드의 장소를 실제 검색해 좌표·링크를 보강(봇이 지어낸 좌표 대신 실데이터).
-    _place_finder = (lambda q: kakao_client.keyword_search(q)) if kakao_client is not None else None
+    # place_finder가 주입되면(종합 검색 등) 그것을 쓰고, 없으면 Kakao 단일 검색.
+    _place_finder = place_finder or ((lambda q: kakao_client.keyword_search(q)) if kakao_client is not None else None)
     # 인접 장소 간 실제 차량 이동시간(compose_itinerary가 사용).
     _route_finder = (lambda o, d: kakao_client.directions(o, d)) if kakao_client is not None else None
     card_tools = (
