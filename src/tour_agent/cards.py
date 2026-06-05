@@ -30,6 +30,7 @@ PLACE_OPTIONS_SCHEMA = {
                     "y": {"type": "number"},
                     "distance_m": {"type": "number"},
                     "phone": {"type": "string"},
+                    "place_url": {"type": "string"},
                     "note": {"type": "string"},
                 },
                 "required": ["name"],

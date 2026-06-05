@@ -24,6 +24,11 @@ export function CatPill({ cat }) {
   return <span className="cat-pill" style={{ background: c.pill, color: c.pinkText }}>{c.label}</span>;
 }
 
+// 장소의 외부 링크 — 봇이 준 place_url, 없으면 이름으로 카카오맵 검색.
+function placeLink(o) {
+  return o.place_url || `https://map.kakao.com/?q=${encodeURIComponent(o.name || "")}`;
+}
+
 export function PlaceOptionsCard({ card, addedIds, onAdd }) {
   const opts = card.options || [];
   return (
@@ -44,15 +49,18 @@ export function PlaceOptionsCard({ card, addedIds, onAdd }) {
           const added = addedIds?.has(id);
           return (
             <div className="place-row" key={i}>
-              <Thumb cat={k} />
-              <div className="place-info">
-                <div className="nm">{o.name} <CatPill cat={k} /></div>
-                <div className="meta">
-                  <span>{o.category || CAT[k].label}</span>
-                  {o.address && <><span className="dot"></span><span>{o.address}</span></>}
-                  {o.distance_m != null && <><span className="dot"></span><span>{o.distance_m}m</span></>}
+              <a href={placeLink(o)} target="_blank" rel="noreferrer" title="카카오맵에서 자세히 보기"
+                 style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, textDecoration: "none", color: "inherit" }}>
+                <Thumb cat={k} />
+                <div className="place-info">
+                  <div className="nm">{o.name} <CatPill cat={k} /> <Icon.search s={12} style={{ color: "var(--ink-4)", verticalAlign: "-1px" }} /></div>
+                  <div className="meta">
+                    <span>{o.category || CAT[k].label}</span>
+                    {o.address && <><span className="dot"></span><span>{o.address}</span></>}
+                    {o.distance_m != null && <><span className="dot"></span><span>{o.distance_m}m</span></>}
+                  </div>
                 </div>
-              </div>
+              </a>
               <div className="place-actions">
                 {added ? (
                   <span className="btn btn-added btn-sm"><Icon.check s={15} /> 담음</span>
@@ -66,7 +74,7 @@ export function PlaceOptionsCard({ card, addedIds, onAdd }) {
       </div>
       <div className="card-foot">
         <Icon.pin s={15} style={{ color: "var(--accent)" }} />
-        <span className="note"><b>추가</b>를 누르면 후보에 담겨 방 전체에 공유돼요. 영업시간은 확인 필요.</span>
+        <span className="note">장소를 누르면 카카오맵에서 자세히 볼 수 있어요. <b>추가</b>는 후보에 담겨 방 전체에 공유돼요(영업시간은 확인 필요).</span>
       </div>
     </div>
   );

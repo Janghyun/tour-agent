@@ -19,7 +19,7 @@ async def search_places_tool(
     *,
     x: float | None = None,
     y: float | None = None,
-    size: int = 5,
+    size: int = 8,
 ) -> str:
     """키워드로 장소를 검색해 에이전트가 읽을 요약을 만든다."""
     places = await client.keyword_search(query, x=x, y=y, size=size)
@@ -32,6 +32,8 @@ async def search_places_tool(
             line += f" / {p.distance_m}m"
         if p.phone:
             line += f" / {p.phone}"
+        if p.place_url:
+            line += f" / 링크 {p.place_url}"
         lines.append(line)
     lines.append("(영업시간·휴무는 WebSearch로 확인 후 '확인 필요' 톤으로 안내할 것)")
     return "\n".join(lines)

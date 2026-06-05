@@ -33,6 +33,7 @@ async def test_search_places_tool_formats_results():
     assert "흑돼지집" in out
     assert "126.9,33.4" in out
     assert "120m" in out
+    assert "u" in out  # place_url(외부 링크)을 카드에 넣을 수 있게 출력에 포함
     assert "확인 필요" in out  # 영업시간은 WebSearch로 확인하라는 안내
 
 
