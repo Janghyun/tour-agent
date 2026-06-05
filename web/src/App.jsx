@@ -4,7 +4,7 @@ import { Icon } from "./icons.jsx";
 import { ChatArea, Composer, Guide } from "./chat.jsx";
 import { LobbyScreen, CreateRoomModal, JoinRoomModal } from "./lobby.jsx";
 import { SidePanel } from "./panel.jsx";
-import { loadMe, saveMe, loadRooms, rememberRoom, forgetRoom, makeRoomCode, loadMsgs, saveMsgs, loadHistory, saveHistoryEntry, removeHistory } from "./rooms.js";
+import { loadMe, saveMe, loadRooms, rememberRoom, forgetRoom, makeRoomCode, loadHistory, saveHistoryEntry, removeHistory } from "./rooms.js";
 import { itineraryToHtml, downloadHtml, openHtml } from "./export.js";
 
 const _loc = typeof location !== "undefined" ? location : { search: "", hostname: "localhost" };
@@ -86,7 +86,7 @@ export default function App() {
 function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
   const [status, setStatus] = useState("연결 중…");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [msgs, setMsgs] = useState(() => loadMsgs(room)); // 새로고침 복원
+  const [msgs, setMsgs] = useState([]); // 입장 시 백엔드 히스토리로 채워짐(방 멤버·기기 공유)
   const [state, setState] = useState(null);
   const [copied, setCopied] = useState(false);
   const [pending, setPending] = useState(false); // 봇 응답 대기 중(타이핑 인디케이터)
@@ -98,9 +98,6 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
   const keyRef = useRef(2_000_000); // 복원 메시지 _k와 충돌 방지(새 메시지는 큰 값부터)
 
   const push = (m) => setMsgs((xs) => [...xs, { _k: keyRef.current++, ...m }]);
-
-  // 채팅 흐름을 방별로 보관(새로고침 후 복원). 방 상태는 백엔드 영속, 채팅은 클라이언트.
-  useEffect(() => { saveMsgs(room, msgs); }, [msgs, room]);
 
   // 봇 응답 대기 중 경과 시간 카운트.
   useEffect(() => {

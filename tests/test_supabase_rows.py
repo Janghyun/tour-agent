@@ -1,12 +1,41 @@
 """SupabaseRowStore(httpx 어댑터) — PostgREST 호출을 MockTransport로 검증(네트워크 없음)."""
 
+import json
+
 import httpx
 
-from tour_agent.supabase_store import SupabaseRowStore
+from tour_agent.supabase_store import SupabaseMessageStore, SupabaseRowStore
 
 
 def _client(handler):
     return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+
+async def test_message_append_posts_row():
+    seen = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen["method"] = req.method
+        seen["url"] = str(req.url)
+        seen["body"] = req.content
+        return httpx.Response(201, json=[])
+
+    ms = SupabaseMessageStore("https://x.supabase.co", "KEY", client=_client(handler))
+    await ms.append("r", {"speaker": "민수", "text": "hi"})
+
+    assert seen["method"] == "POST" and "room_message" in seen["url"]
+    assert json.loads(seen["body"]) == {"room_id": "r", "data": {"speaker": "민수", "text": "hi"}}
+
+
+async def test_message_recent_returns_chronological():
+    def handler(req: httpx.Request) -> httpx.Response:
+        # PostgREST는 order=id.desc로 최신순 반환 → 스토어가 시간순으로 뒤집어야 한다.
+        assert "order=id.desc" in str(req.url)
+        return httpx.Response(200, json=[{"data": {"text": "2"}}, {"data": {"text": "1"}}])
+
+    ms = SupabaseMessageStore("https://x.supabase.co", "KEY", client=_client(handler))
+    out = await ms.recent("r", limit=10)
+    assert [m["text"] for m in out] == ["1", "2"]
 
 
 async def test_get_returns_data_when_row_exists():

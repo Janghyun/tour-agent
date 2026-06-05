@@ -32,24 +32,8 @@ export function forgetRoom(id) {
   _ls()?.setItem(ROOMS_KEY, JSON.stringify(loadRooms().filter((r) => r.id !== id)));
 }
 
-/* 채팅 메시지(사람 대화 + 봇 카드)를 방별로 보관 — 새로고침 시 내 화면 복원용.
- * 방 상태(후보·일정)는 백엔드(Supabase) 영속이지만, 채팅 흐름은 클라이언트 메모리뿐이라 사라진다. */
-export function loadMsgs(room) {
-  try {
-    return JSON.parse(_ls()?.getItem("ta_msgs_" + room) || "[]");
-  } catch {
-    return [];
-  }
-}
-export function saveMsgs(room, msgs) {
-  try {
-    _ls()?.setItem("ta_msgs_" + room, JSON.stringify(msgs.slice(-120)));
-  } catch {
-    /* 용량 초과 등은 무시 */
-  }
-}
-
-/* 내보낸 일정 HTML 보관(history) — 방별, 나중에 다시 보기. */
+/* 내보낸 일정 HTML 보관(history) — 방별, 나중에 다시 보기.
+ * (채팅 메시지는 이제 백엔드(Supabase)에 저장돼 방 멤버·기기가 공유한다.) */
 export function loadHistory(room) {
   try {
     return JSON.parse(_ls()?.getItem("ta_history_" + room) || "[]");

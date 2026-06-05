@@ -211,6 +211,44 @@ async def test_add_place_by_link_registers():
     assert [p.name for p in saved.candidates] == ["성산일출봉"]
 
 
+async def test_message_history_sent_on_join():
+    from tour_agent.messages import InMemoryMessageStore
+
+    ms = InMemoryMessageStore()
+    await ms.append("jeju", {"speaker": "민수", "text": "이전 대화"})
+    await ms.append("jeju", {"speaker": "봇", "type": "card", "card": {"type": "itinerary"}})
+
+    app = create_app(agent_factory=lambda room_id, emit_card: EchoAgent(), message_store=ms, debounce_seconds=0.05)
+    async with _ServerThread(app) as port:
+        uri = f"ws://127.0.0.1:{port}/ws/jeju"
+        async with websockets.connect(uri) as ws:
+            m1 = json.loads(await asyncio.wait_for(ws.recv(), 5))
+            m2 = json.loads(await asyncio.wait_for(ws.recv(), 5))
+
+    assert m1 == {"speaker": "민수", "text": "이전 대화", "history": True}
+    assert m2["type"] == "card" and m2["card"]["type"] == "itinerary" and m2["history"] is True
+
+
+async def test_chat_and_bot_reply_persisted():
+    from tour_agent.messages import InMemoryMessageStore
+
+    ms = InMemoryMessageStore()
+    app = create_app(agent_factory=lambda room_id, emit_card: EchoAgent(), message_store=ms, debounce_seconds=0.05)
+    async with _ServerThread(app) as port:
+        uri = f"ws://127.0.0.1:{port}/ws/jeju"
+        async with websockets.connect(uri) as ws:
+            await ws.send(json.dumps({"speaker": "민수", "text": "@봇 안녕"}))
+            for _ in range(4):
+                try:
+                    await asyncio.wait_for(ws.recv(), 5)
+                except asyncio.TimeoutError:
+                    break
+
+    texts = [m.get("text") for m in await ms.recent("jeju")]
+    assert "@봇 안녕" in texts  # 사람 메시지 저장
+    assert any(t and t.startswith("답변: ") for t in texts)  # 봇 응답도 저장
+
+
 async def test_human_chat_broadcasts_to_room():
     app = create_app(
         agent_factory=lambda room_id, emit_card: EchoAgent(), debounce_seconds=0.05
