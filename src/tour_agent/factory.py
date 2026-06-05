@@ -79,8 +79,12 @@ def build_default_runner(
     )
     # 일정 카드의 장소를 실제 검색해 좌표·링크를 보강(봇이 지어낸 좌표 대신 실데이터).
     _place_finder = (lambda q: kakao_client.keyword_search(q)) if kakao_client is not None else None
+    # 인접 장소 간 실제 차량 이동시간(compose_itinerary가 사용).
+    _route_finder = (lambda o, d: kakao_client.directions(o, d)) if kakao_client is not None else None
     card_tools = (
-        present_tools(emit_card, place_finder=_place_finder) if emit_card is not None else []
+        present_tools(emit_card, place_finder=_place_finder, route_finder=_route_finder)
+        if emit_card is not None
+        else []
     )
     task_tools = [*input_tools, *card_tools]
 

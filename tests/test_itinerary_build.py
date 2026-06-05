@@ -1,0 +1,55 @@
+"""build_itinerary — 봇이 준 장소 목록(plan)을 좌표·동선·시간까지 코드로 조립."""
+
+from tour_agent.itinerary_build import build_itinerary
+from tour_agent.kakao import Place, RouteInfo
+
+_DB = {
+    "애월 숙소": Place("0", "애월 숙소", "숙소", "", "", 126.31, 33.46, "u0"),
+    "성산일출봉": Place("1", "성산일출봉", "명소", "", "", 126.94, 33.46, "u1"),
+    "우도": Place("2", "우도", "자연", "", "", 126.95, 33.50, "u2"),
+    "돈사돈": Place("3", "돈사돈", "흑돼지", "", "", 126.49, 33.49, "u3"),
+}
+
+
+async def _finder(q):
+    return [_DB[q]] if q in _DB else []
+
+
+async def test_build_fills_coords_orders_and_times():
+    plan = {
+        "title": "제주",
+        "days": [{
+            "date": "7/26", "accommodation": "애월 숙소",
+            "items": [{"name": "우도"}, {"name": "성산일출봉"}, {"name": "돈사돈", "meal": "dinner"}],
+        }],
+    }
+    card = await build_itinerary(plan, place_finder=_finder)
+
+    assert card["type"] == "itinerary"
+    day = card["days"][0]
+    assert all(i.get("x") and i.get("y") for i in day["items"])  # 좌표 채움
+    assert [i["time"] for i in day["items"]] == sorted(i["time"] for i in day["items"])  # 시간 오름차순
+    assert day["acc_x"] == 126.31 and day["acc_y"] == 33.46  # 숙소 좌표
+    assert {i["name"] for i in day["items"]} == {"우도", "성산일출봉", "돈사돈"}
+
+
+async def test_build_uses_route_finder_for_travel():
+    async def route(origin, dest):
+        return RouteInfo(distance_m=10000, duration_s=1200)  # 20분
+
+    plan = {"days": [{"accommodation": "애월 숙소", "items": [{"name": "성산일출봉"}, {"name": "우도"}]}]}
+    card = await build_itinerary(plan, place_finder=_finder, route_finder=route)
+    travels = [i.get("travel_from_prev") for i in card["days"][0]["items"]]
+    assert any(t and "20분" in t for t in travels)  # 실제 경로 시간 반영
+
+
+async def test_build_drops_outlier_region():
+    async def finder(q):
+        if q == "엉뚱식당":
+            return [Place("x", q, "식당", "", "", 126.8, 36.8, "u")]  # 충청
+        return await _finder(q)
+
+    plan = {"days": [{"accommodation": "애월 숙소", "items": [{"name": "성산일출봉"}, {"name": "우도"}, {"name": "엉뚱식당"}]}]}
+    card = await build_itinerary(plan, place_finder=finder)
+    by = {i["name"]: i for i in card["days"][0]["items"]}
+    assert "x" not in by["엉뚱식당"]  # 다른 지역은 좌표 없이(동선에서 제외)

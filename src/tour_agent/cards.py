@@ -101,6 +101,37 @@ COMPARE_SCHEMA = {
     "required": ["options"],
 }
 
+COMPOSE_ITINERARY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "days": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "date": {"type": "string"},
+                    "accommodation": {"type": "string"},
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "category": {"type": "string"},
+                                "meal": {"type": "string"},  # lunch/dinner 등(선택)
+                            },
+                            "required": ["name"],
+                        },
+                    },
+                },
+                "required": ["items"],
+            },
+        },
+    },
+    "required": ["days"],
+}
+
 MAP_SCHEMA = {
     "type": "object",
     "properties": {
@@ -183,10 +214,11 @@ async def _enrich_itinerary(card: dict, place_finder) -> None:
             d["acc_x"], d["acc_y"] = p.x, p.y
 
 
-def present_tools(emit: CardSink, *, place_finder=None) -> list[ToolSpec]:
+def present_tools(emit: CardSink, *, place_finder=None, route_finder=None) -> list[ToolSpec]:
     """방의 카드 싱크(emit)에 묶인 present_* ToolSpec들을 만든다.
 
-    ``place_finder`` 가 주어지면 일정 카드의 각 장소를 실제 검색해 좌표·링크를 보강한다.
+    ``place_finder`` 가 주어지면 일정 카드의 장소를 실제 검색해 좌표·링크를 보강하고,
+    ``compose_itinerary`` 툴(봇은 장소 목록만, 좌표·동선·시간은 코드가 조립)을 추가로 노출한다.
     """
 
     def _card_tool(name: str, card_type: str, description: str, schema: dict) -> ToolSpec:
@@ -198,6 +230,23 @@ def present_tools(emit: CardSink, *, place_finder=None) -> list[ToolSpec]:
             return f"{card_type} 카드를 표시했습니다."
 
         return ToolSpec(name, description, schema, handler)
+
+    async def _compose_handler(args: dict) -> str:
+        from .itinerary_build import build_itinerary
+
+        card = await build_itinerary(args, place_finder=place_finder, route_finder=route_finder)
+        await emit(card)
+        return "itinerary 카드를 표시했습니다."
+
+    extra: list[ToolSpec] = []
+    if place_finder is not None:
+        extra.append(ToolSpec(
+            "compose_itinerary",
+            "일정을 만든다(권장). 날짜별 장소 이름 목록만 넘기면 좌표·동선·이동시간·시간표를 "
+            "시스템이 실제 데이터로 채워 카드로 보여준다. 좌표·시간을 직접 쓰지 말 것.",
+            COMPOSE_ITINERARY_SCHEMA,
+            _compose_handler,
+        ))
 
     return [
         _card_tool(
@@ -224,4 +273,5 @@ def present_tools(emit: CardSink, *, place_finder=None) -> list[ToolSpec]:
             "한 슬롯의 대안 2~3곳을 나란히 비교 카드로 보여준다(사용자가 하나를 골라 후보에 담음)",
             COMPARE_SCHEMA,
         ),
+        *extra,
     ]

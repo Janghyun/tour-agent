@@ -1,0 +1,98 @@
+"""일정 조립 — 봇은 '장소 목록(plan)'만 주고, 좌표·동선·시간은 코드가 결정적으로 채운다.
+
+봇이 일정 전체(좌표·시간·카드)를 만들면 cli(구독)에서 느리고 부정확하다. 대신 봇은 가벼운
+plan(날짜별 장소 이름)만 만들고, 여기서:
+  1) Kakao 검색으로 좌표·링크(다른 지역 동명은 이상치로 제외)
+  2) order_route(NN+2-opt)로 숙소 기준 방문 순서
+  3) directions로 인접 실이동시간(route_finder 있을 때)
+  4) 체류·이동 누적으로 시간 배분
+  -> present_itinerary 카드(dict)를 만든다.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import statistics
+
+from .route import optimize_route
+
+_REGION_TOL = 0.7  # 같은 여행 지역으로 볼 좌표 허용 반경(도)
+_STAY_MIN = 90  # 장소별 기본 체류(분)
+
+
+async def _first(place_finder, name: str):
+    try:
+        r = await place_finder(name)
+    except Exception:  # noqa: BLE001
+        return None
+    return r[0] if r else None
+
+
+def _hhmm(total_min: int) -> str:
+    h, m = divmod(int(total_min), 60)
+    return f"{h % 24:02d}:{m:02d}"
+
+
+async def build_itinerary(plan, *, place_finder, route_finder=None, start_hour: int = 9):
+    title = plan.get("title") or "여행 일정"
+    days_out = []
+
+    for day in plan.get("days", []):
+        acc_name = day.get("accommodation")
+        raw = [it for it in day.get("items", []) if isinstance(it, dict) and it.get("name")]
+
+        firsts = list(await asyncio.gather(*(_first(place_finder, it["name"]) for it in raw))) if raw else []
+        acc_p = await _first(place_finder, acc_name) if acc_name else None
+
+        coords = [(p.x, p.y) for p in [*firsts, acc_p] if p and p.x and p.y]
+        if coords:
+            cx = statistics.median(c[0] for c in coords)
+            cy = statistics.median(c[1] for c in coords)
+
+            def near(p) -> bool:
+                return bool(p and p.x and p.y and abs(p.x - cx) <= _REGION_TOL and abs(p.y - cy) <= _REGION_TOL)
+        else:
+            def near(p) -> bool:  # noqa: ARG001
+                return False
+
+        located = [(it, p) for it, p in zip(raw, firsts) if near(p)]
+        unlocated = [it for it, p in zip(raw, firsts) if not near(p)]
+
+        # 동선 정렬(숙소 출발 기준)
+        if acc_p and near(acc_p) and located:
+            order = optimize_route((acc_p.x, acc_p.y), [(p.x, p.y) for _, p in located])
+            located = [located[i] for i in order]
+
+        items_out = []
+        t = start_hour * 60
+        prev = (acc_p.x, acc_p.y) if (acc_p and near(acc_p)) else None
+        for it, p in located:
+            travel = ""
+            if route_finder is not None and prev is not None:
+                try:
+                    r = await route_finder(prev, (p.x, p.y))
+                    mins = round(r.duration_s / 60)
+                    travel = f"차 약 {mins}분"
+                    t += mins
+                except Exception:  # noqa: BLE001
+                    pass
+            items_out.append({
+                "name": it["name"],
+                "time": _hhmm(t),
+                "category": it.get("category") or p.category,
+                "x": p.x, "y": p.y, "place_url": p.place_url,
+                "travel_from_prev": travel,
+            })
+            t += _STAY_MIN
+            prev = (p.x, p.y)
+
+        # 좌표를 못 찾은 항목은 동선에서 빼고 이름만 뒤에 둔다(지도엔 안 찍힘).
+        for it in unlocated:
+            items_out.append({"name": it["name"], "category": it.get("category", ""), "note": "위치 확인 필요"})
+
+        d = {"date": day.get("date"), "accommodation": acc_name, "items": items_out}
+        if acc_p and near(acc_p):
+            d["acc_x"], d["acc_y"] = acc_p.x, acc_p.y
+        days_out.append(d)
+
+    return {"type": "itinerary", "title": title, "days": days_out}
