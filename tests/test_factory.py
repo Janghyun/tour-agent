@@ -56,6 +56,20 @@ async def test_simple_path_gets_snapshot_from_store():
     assert task.calls == []
 
 
+async def test_snapshot_includes_today_for_weekday_calc():
+    store = InMemoryStateStore()
+    simple = RecordingRunner("simple")
+    runner = build_room_runner(
+        "r", store,
+        classifier=FixedClassifier("simple"),
+        simple_runner=simple,
+        task_runner=RecordingRunner("task"),
+    )
+    await runner.run_turn("안녕")
+    # 봇이 연도·요일을 올해 기준으로 계산하도록 스냅샷에 '오늘' 날짜가 들어간다.
+    assert "오늘:" in simple.calls[0]
+
+
 async def test_budget_cap_wires_through_factory():
     store = InMemoryStateStore()
     simple = RecordingRunner("simple")

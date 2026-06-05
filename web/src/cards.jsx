@@ -1,8 +1,11 @@
 /* 봇 카드 컴포넌트 — 디자인 프로토타입에서 포팅, 백엔드 present_* 페이로드로 구동.
  * styles.css의 .card/.place-row/.tl 등 디자인 클래스를 사용. 카테고리는 catKey로 정규화. */
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Icon } from "./icons.jsx";
 import { CAT, catKey, shade } from "./constants.js";
+
+// 실제 지도 모달은 leaflet(브라우저 전용)이라 lazy 로드 — 열 때만 가져온다(SSR 안전).
+const MapModal = lazy(() => import("./mapmodal.jsx"));
 
 export function Thumb({ cat, size = 52 }) {
   const c = CAT[cat] || CAT.sight;
@@ -82,8 +85,9 @@ export function PlaceOptionsCard({ card, addedIds, onAdd }) {
 }
 
 // 일정 카드 안 미니맵 — 항목 좌표로 번호 핀 + 동선(점선). 번호를 누르면 장소 정보. 좌표 2곳 미만이면 생략.
-function ItinMiniMap({ stops }) {
+function ItinMiniMap({ stops, title }) {
   const [sel, setSel] = useState(null);
+  const [big, setBig] = useState(false);
   const pts = stops.filter((s) => s.x && s.y).map((s) => ({ name: s.name, x: +s.x, y: +s.y, cat: catKey(s.category), category: s.category, place_url: s.place_url }));
   if (pts.length < 2) return null;
   const W = 100, H = 58, pad = 12;
@@ -105,6 +109,15 @@ function ItinMiniMap({ stops }) {
         ))}
       </svg>
       <span style={{ position: "absolute", left: 8, bottom: 6, fontSize: 10.5, color: "var(--ink-3)", background: "rgba(255,255,255,.7)", borderRadius: 6, padding: "1px 6px" }}>번호를 누르면 장소 정보</span>
+      <button onClick={() => setBig(true)} title="실제 지도로 크게 보기"
+              style={{ position: "absolute", right: 8, bottom: 6, display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "var(--accent-700)", background: "rgba(255,255,255,.85)", border: "1px solid var(--line)", borderRadius: 8, padding: "3px 8px", cursor: "pointer" }}>
+        <Icon.map s={13} /> 지도 확대
+      </button>
+      {big && (
+        <Suspense fallback={null}>
+          <MapModal stops={stops} title={title} onClose={() => setBig(false)} />
+        </Suspense>
+      )}
       {s && (
         <div style={{ position: "absolute", left: 8, right: 8, top: 8, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 10, boxShadow: "var(--sh-2)", padding: "8px 10px", display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ width: 22, height: 22, flex: "none", borderRadius: "50%", background: (CAT[s.cat] || CAT.sight).bg, color: "#fff", fontSize: 12, fontWeight: 800, display: "grid", placeItems: "center" }}>{sel + 1}</span>
@@ -143,7 +156,7 @@ export function ItineraryCard({ card, confirmed }) {
               <span className="dl">{d.date || `Day ${di + 1}`}</span>
               {d.accommodation && <span className="ds">· 숙소 {d.accommodation}</span>}
             </div>
-            <ItinMiniMap stops={d.items || []} />
+            <ItinMiniMap stops={d.items || []} title={`${d.date || `Day ${di + 1}`} 동선`} />
             <div className="tl-track">
               {(d.items || []).map((it, ii) => (
                 <div className="tl-stop" key={ii}>
