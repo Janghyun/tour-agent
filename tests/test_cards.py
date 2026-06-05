@@ -30,6 +30,28 @@ async def test_present_itinerary_enriches_with_place_finder():
     assert item["place_url"] == "http://k/성산일출봉"  # 실링크로 보강
 
 
+async def test_enrich_drops_outlier_other_region():
+    from tour_agent.kakao import Place
+
+    emitted = []
+
+    async def emit(card):
+        emitted.append(card)
+
+    async def finder(q):
+        if q == "엉뚱한식당":  # 동명이라 전국 검색에서 충청도 결과가 잡힌 상황
+            return [Place("x", q, "식당", "", "", 126.8, 36.8, "u")]
+        return [Place("1", q, "명소", "", "", 126.5, 33.4, "u")]  # 제주
+
+    tools = {t.name: t for t in present_tools(emit, place_finder=finder)}
+    await tools["present_itinerary"].handler(
+        {"days": [{"items": [{"name": "성산"}, {"name": "우도"}, {"name": "엉뚱한식당"}]}]}
+    )
+    by = {i["name"]: i for i in emitted[0]["days"][0]["items"]}
+    assert by["성산"]["x"] == 126.5 and by["우도"]["x"] == 126.5
+    assert "x" not in by["엉뚱한식당"]  # 다른 지역 이상치는 좌표를 넣지 않는다
+
+
 async def test_present_itinerary_without_finder_keeps_payload():
     emitted = []
 

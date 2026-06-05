@@ -132,35 +132,55 @@ MAP_SCHEMA = {
 
 
 async def _enrich_itinerary(card: dict, place_finder) -> None:
-    """일정 카드의 각 항목을 실제 검색해 좌표·링크를 채운다(봇이 지어낸 좌표 대신 실데이터).
+    """일정 카드의 각 항목·숙소를 실제 검색해 좌표·링크를 채운다(봇이 지어낸 좌표 대신 실데이터).
 
-    이름으로 첫 검색 결과를 쓴다. 병렬 처리. 검색 실패/무결과 항목은 그대로 둔다.
+    - 이름으로 첫 검색 결과를 쓰되, 전체 좌표의 중심에서 크게 벗어난 이상치(동명의 다른 지역)는
+      좌표를 넣지 않는다(예: 제주 일정에 충청도 동명 가게가 잡히는 경우).
+    - 숙소(day.accommodation)도 검색해 day.acc_x/acc_y로 둔다(지도에 출발 핀 표시용).
     """
     import asyncio
+    import statistics
 
+    days = card.get("days", [])
     items = [
         it
-        for day in card.get("days", [])
+        for day in days
         for it in day.get("items", [])
         if isinstance(it, dict) and it.get("name")
     ]
+    acc_days = [d for d in days if isinstance(d, dict) and d.get("accommodation")]
 
-    async def fill(it: dict) -> None:
+    async def first(name: str):
         try:
-            results = await place_finder(it["name"])
-        except Exception:  # noqa: BLE001 - 개별 실패는 무시(그 항목만 좌표 없음)
-            return
-        if not results:
-            return
-        p = results[0]
+            r = await place_finder(name)
+        except Exception:  # noqa: BLE001 - 개별 실패는 무시
+            return None
+        return r[0] if r else None
+
+    item_firsts = list(await asyncio.gather(*(first(it["name"]) for it in items))) if items else []
+    acc_firsts = list(await asyncio.gather(*(first(d["accommodation"]) for d in acc_days))) if acc_days else []
+
+    coords = [(p.x, p.y) for p in [*item_firsts, *acc_firsts] if p and p.x and p.y]
+    if not coords:
+        return
+    cx = statistics.median(c[0] for c in coords)
+    cy = statistics.median(c[1] for c in coords)
+
+    def near(p) -> bool:  # 같은 여행 지역인지(중심에서 ~0.7도 이내)
+        return bool(p and p.x and p.y and abs(p.x - cx) <= 0.7 and abs(p.y - cy) <= 0.7)
+
+    for it, p in zip(items, item_firsts):
+        if not near(p):
+            continue
         it["x"], it["y"] = p.x, p.y
         if not it.get("place_url"):
             it["place_url"] = p.place_url
         if not it.get("category"):
             it["category"] = p.category
 
-    if items:
-        await asyncio.gather(*(fill(it) for it in items))
+    for d, p in zip(acc_days, acc_firsts):
+        if near(p):
+            d["acc_x"], d["acc_y"] = p.x, p.y
 
 
 def present_tools(emit: CardSink, *, place_finder=None) -> list[ToolSpec]:

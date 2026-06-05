@@ -106,6 +106,9 @@ class RoutingAgentRunner:
         self._budget = budget
 
     async def run_turn(self, prompt: str) -> str:
+        import time
+
+        t0 = time.monotonic()
         if self._budget is not None:
             try:
                 self._budget.charge()
@@ -116,9 +119,10 @@ class RoutingAgentRunner:
         # 두 경로 모두 방 상태 스냅샷을 주입한다 — 작업 경로도 후보 풀·숙소를 알아야
         # '담은 후보로' 일정을 짤 수 있다(상태 조회 툴이 별도로 없으므로).
         prompt_with_state = await self._with_snapshot(prompt)
-        if kind == "simple":
-            return await self._simple.run_turn(prompt_with_state)
-        return await self._task.run_turn(prompt_with_state)
+        runner = self._simple if kind == "simple" else self._task
+        out = await runner.run_turn(prompt_with_state)
+        print(f"[봇] {kind} 응답 {time.monotonic() - t0:.1f}초", flush=True)
+        return out
 
     async def _with_snapshot(self, prompt: str) -> str:
         if self._snapshot is None:
