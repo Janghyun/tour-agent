@@ -53,7 +53,8 @@ def build_default_runner(
         실제 Anthropic 호출은 ``model_client`` 로 주입(기본은 anthropic_model_client, 호출 시점에만
         anthropic 임포트). 이 함수는 SDK·anthropic 없이도 import·합성된다.
       - ``"cli"`` (로컬·개발): Agent SDK/구독. LLM 분류 호출을 아끼려 ``HeuristicClassifier`` 를
-        쓰고, 단순/작업 모두 ``CliAgentRunner``. 구독 기본 모델을 쓰므로 ``model`` 은 넘기지 않는다.
+        쓰고, 단순/작업 모두 ``CliAgentRunner``. ``model`` 을 전달해 모델을 고정한다(미지정 시
+        구독 기본=Opus라 느리고 비싸므로, 기본값 sonnet으로 맞춘다).
 
     ``emit_card`` 가 주어지면 작업 경로에 present_* 카드 툴을 붙인다(방 브로드캐스트로 연결).
     ``kakao_client`` 가 있으면 검색·동선 입력 툴을, 없으면 order_route(순수)만 붙인다.
@@ -77,8 +78,8 @@ def build_default_runner(
             room_id,
             store,
             classifier=HeuristicClassifier(),
-            simple_runner=CliAgentRunner([], SIMPLE_SYSTEM),
-            task_runner=CliAgentRunner(task_tools, ORCHESTRATOR_SYSTEM),
+            simple_runner=CliAgentRunner([], SIMPLE_SYSTEM, model=model),
+            task_runner=CliAgentRunner(task_tools, ORCHESTRATOR_SYSTEM, model=model),
             budget=DailyBudget(limit=daily_limit),
         )
 

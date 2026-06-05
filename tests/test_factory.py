@@ -89,12 +89,15 @@ def test_build_default_runner_cli_backend_uses_cli_and_heuristic():
     from tour_agent.routing import HeuristicClassifier
 
     store = InMemoryStateStore()
-    runner = build_default_runner("r", store, backend="cli")
+    runner = build_default_runner("r", store, backend="cli", model="claude-sonnet-4-6")
 
     assert isinstance(runner, RoutingAgentRunner)
     assert isinstance(runner._classifier, HeuristicClassifier)
     assert isinstance(runner._simple, CliAgentRunner)
     assert isinstance(runner._task, CliAgentRunner)
+    # cli 러너도 지정 모델을 따른다(미지정 시 구독 기본=Opus를 피하고 sonnet 고정).
+    assert runner._simple._model == "claude-sonnet-4-6"
+    assert runner._task._model == "claude-sonnet-4-6"
 
 
 async def test_task_path_emits_card_through_factory():
