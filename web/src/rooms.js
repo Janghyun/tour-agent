@@ -32,31 +32,7 @@ export function forgetRoom(id) {
   _ls()?.setItem(ROOMS_KEY, JSON.stringify(loadRooms().filter((r) => r.id !== id)));
 }
 
-/* 내보낸 일정 HTML 보관(history) — 방별, 나중에 다시 보기.
- * (채팅 메시지는 이제 백엔드(Supabase)에 저장돼 방 멤버·기기가 공유한다.) */
-export function loadHistory(room) {
-  try {
-    return JSON.parse(_ls()?.getItem("ta_history_" + room) || "[]");
-  } catch {
-    return [];
-  }
-}
-export function saveHistoryEntry(room, entry) {
-  const list = loadHistory(room);
-  list.unshift(entry);
-  try {
-    _ls()?.setItem("ta_history_" + room, JSON.stringify(list.slice(0, 30)));
-  } catch {
-    /* 용량 초과 무시 */
-  }
-}
-export function removeHistory(room, ts) {
-  try {
-    _ls()?.setItem("ta_history_" + room, JSON.stringify(loadHistory(room).filter((e) => e.ts !== ts)));
-  } catch {
-    /* 무시 */
-  }
-}
+/* 채팅·내보낸 기록은 백엔드(Supabase)에 저장돼 방 멤버·기기가 공유한다(localStorage 아님). */
 
 const _ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 /* 사람이 읽고 부르기 쉬운 방 코드(혼동 글자 제외). seed로 결정적 생성(테스트·SSR 안전). */

@@ -90,11 +90,11 @@ class SupabaseMessageStore:
         create index if not exists room_message_room_idx on room_message(room_id, id);
     """
 
-    def __init__(self, base_url: str, api_key: str, *, client: httpx.AsyncClient | None = None):
+    def __init__(self, base_url: str, api_key: str, *, table: str = "room_message", client: httpx.AsyncClient | None = None):
         self._base = base_url.rstrip("/")
         self._key = api_key
         self._client = client
-        self._table = f"{self._base}/rest/v1/room_message"
+        self._table = f"{self._base}/rest/v1/{table}"
 
     def _headers(self, extra: dict | None = None) -> dict:
         h = {

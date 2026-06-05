@@ -40,22 +40,24 @@ def _make_stores():
         rows = SupabaseRowStore.from_env()
     except SupabaseError:
         print("[store] 인메모리 사용(SUPABASE 키 없음)")
-        return InMemoryStateStore(), InMemoryMessageStore()
+        return InMemoryStateStore(), InMemoryMessageStore(), InMemoryMessageStore()
     import asyncio
 
     try:  # 테이블·권한 헬스체크 — 실패하면 인메모리로 안전하게 내려간다.
         asyncio.run(rows.get("__healthcheck__"))
     except Exception as exc:  # noqa: BLE001 - 어떤 연결 오류든 fallback
         print(f"[store] Supabase 연결 실패 → 인메모리 fallback: {str(exc)[:140]}")
-        return InMemoryStateStore(), InMemoryMessageStore()
-    print("[store] Supabase 영속 사용(방 상태 + 채팅 메시지)")
+        return InMemoryStateStore(), InMemoryMessageStore(), InMemoryMessageStore()
+    print("[store] Supabase 영속 사용(방 상태 + 채팅 + 내보낸 기록)")
+    url, key = os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"]
     return (
         SupabaseStateStore(rows),
-        SupabaseMessageStore(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"]),
+        SupabaseMessageStore(url, key),
+        SupabaseMessageStore(url, key, table="room_export"),
     )
 
 
-_store, _message_store = _make_stores()
+_store, _message_store, _export_store = _make_stores()
 
 # Kakao 키가 있으면 검색·동선 툴을 붙이고, 없으면 order_route(순수)만.
 try:
@@ -100,6 +102,7 @@ app = create_app(
     place_finder=_place_finder,
     url_resolver=_url_resolver,
     message_store=_message_store,
+    export_store=_export_store,
 )
 
 

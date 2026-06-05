@@ -4,7 +4,7 @@ import { Icon } from "./icons.jsx";
 import { ChatArea, Composer, Guide } from "./chat.jsx";
 import { LobbyScreen, CreateRoomModal, JoinRoomModal } from "./lobby.jsx";
 import { SidePanel } from "./panel.jsx";
-import { loadMe, saveMe, loadRooms, rememberRoom, forgetRoom, makeRoomCode, loadHistory, saveHistoryEntry, removeHistory } from "./rooms.js";
+import { loadMe, saveMe, loadRooms, rememberRoom, forgetRoom, makeRoomCode } from "./rooms.js";
 import { itineraryToHtml, downloadHtml, openHtml } from "./export.js";
 
 const _loc = typeof location !== "undefined" ? location : { search: "", hostname: "localhost" };
@@ -94,7 +94,7 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
   const [elapsed, setElapsed] = useState(0); // 봇 응답 경과 시간(초)
   const [showGuide, setShowGuide] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [historyTick, setHistoryTick] = useState(0);
+  const [historyItems, setHistoryItems] = useState([]); // 내보낸 기록(백엔드, 방 멤버 공유)
   const connRef = useRef(null);
   const keyRef = useRef(2_000_000); // 복원 메시지 _k와 충돌 방지(새 메시지는 큰 값부터)
   const startRef = useRef(0); // 봇 응답 시작 시각(소요 시간 계산용)
@@ -136,6 +136,7 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
         push({ card, took });
       },
       onState: (s) => setState(s),
+      onExports: (items) => setHistoryItems(items),
       onError: (t) => { startRef.current = 0; setPending(false); push({ author: "시스템", text: "⚠ " + t }); },
     });
     connRef.current = conn;
@@ -161,14 +162,14 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
   // 채팅 링크의 '후보 등록' 버튼 — 링크의 장소를 검색해 후보로.
   const addLink = (url) => { connRef.current?.sendAction({ action: "add_place_by_link", url }); setPending(true); setPendingText("링크의 장소를 후보로 등록"); startRef.current = Date.now(); };
 
-  // 일정 카드 '내보내기' — HTML 다운로드 + history 보관(나중에 다시 보기).
+  // 일정 카드 '내보내기' — HTML 다운로드 + 백엔드 기록(방 멤버·기기 공유).
   const exportItin = (card) => {
     const html = itineraryToHtml(card, { dest: title, dates: state?.dates });
     const name = card.title || title || "여행일정";
     downloadHtml(html, name);
-    saveHistoryEntry(room, { ts: Date.now(), title: name, dates: state?.dates || "", html });
-    setHistoryTick((n) => n + 1);
+    connRef.current?.sendAction({ action: "add_export", title: name, dates: state?.dates || "", html, ts: Date.now() });
   };
+  const openHistory = () => { setHistoryOpen(true); connRef.current?.sendAction({ action: "list_exports" }); };
 
   const [tab, setTab] = useState("cand");
   const [selectedId, setSelectedId] = useState(null);
@@ -230,8 +231,8 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
         <button onClick={copyCode} style={{ ...S.ghostBtn }} title="방 코드 복사">
           <Icon.send s={13} /> {copied ? "복사됨" : `코드 ${room}`}
         </button>
-        <button onClick={() => setHistoryOpen(true)} style={{ ...S.ghostBtn }} title="내보낸 일정 기록">
-          <Icon.calendar s={13} /> 기록{loadHistory(room).length ? ` ${loadHistory(room).length}` : ""}
+        <button onClick={openHistory} style={{ ...S.ghostBtn }} title="내보낸 일정 기록(방 공유)">
+          <Icon.calendar s={13} /> 기록
         </button>
         <button onClick={() => setShowGuide(true)} style={{ ...S.ghostBtn, padding: "5px 10px", fontWeight: 800 }} title="여행봇 사용법">?</button>
         <span style={{ marginLeft: "auto", fontSize: 12.5, color: status === "연결됨" ? "var(--accent)" : "var(--ink-3)" }}>● {status}</span>
@@ -282,26 +283,25 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
       )}
 
       {historyOpen && (
-        <div onClick={() => setHistoryOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(20,18,15,.45)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} data-tick={historyTick}>
+        <div onClick={() => setHistoryOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(20,18,15,.45)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 520, maxHeight: "85vh", overflowY: "auto", background: "var(--surface)", borderRadius: "var(--r)", boxShadow: "var(--sh-2)", padding: 16 }}>
             <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
-              <strong style={{ fontSize: 15, flex: 1 }}>내보낸 일정 기록</strong>
+              <strong style={{ fontSize: 15, flex: 1 }}>내보낸 일정 기록 <span style={{ fontSize: 12, fontWeight: 500, color: "var(--ink-3)" }}>· 방 멤버 공유</span></strong>
               <button onClick={() => setHistoryOpen(false)} aria-label="닫기" style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--ink-3)" }}><Icon.x s={16} /></button>
             </div>
-            {loadHistory(room).length === 0 ? (
+            {historyItems.length === 0 ? (
               <div style={{ fontSize: 13, color: "var(--ink-3)", padding: "8px 2px" }}>
-                아직 내보낸 일정이 없어요. 일정 카드의 <b>내보내기</b>를 누르면 HTML로 저장되고 여기에 기록돼요.
+                아직 내보낸 일정이 없어요. 일정 카드의 <b>내보내기</b>를 누르면 HTML로 저장되고 방 전체가 여기서 다시 볼 수 있어요.
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {loadHistory(room).map((e) => (
-                  <div key={e.ts} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px", border: "1px solid var(--line)", borderRadius: "var(--r-xs)" }}>
+                {historyItems.map((e, i) => (
+                  <div key={e.ts || i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px", border: "1px solid var(--line)", borderRadius: "var(--r-xs)" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13.5, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</div>
-                      <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{e.dates ? e.dates + " · " : ""}{new Date(e.ts).toLocaleString("ko-KR", { dateStyle: "medium", timeStyle: "short" })}</div>
+                      <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{e.dates ? e.dates + " · " : ""}{e.ts ? new Date(e.ts).toLocaleString("ko-KR", { dateStyle: "medium", timeStyle: "short" }) : ""}</div>
                     </div>
                     <button className="btn btn-soft btn-sm" onClick={() => openHtml(e.html)}><Icon.send s={13} /> 열기</button>
-                    <button onClick={() => { removeHistory(room, e.ts); setHistoryTick((n) => n + 1); }} aria-label="삭제" style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--ink-4)" }}><Icon.trash s={15} /></button>
                   </div>
                 ))}
               </div>

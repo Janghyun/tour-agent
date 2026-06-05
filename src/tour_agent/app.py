@@ -107,7 +107,7 @@ class RoomHub:
 
 def create_app(
     agent_factory: AgentFactory, *, store=None, debounce_seconds: float = 1.5,
-    place_finder=None, url_resolver=None, message_store=None,
+    place_finder=None, url_resolver=None, message_store=None, export_store=None,
 ) -> FastAPI:
     app = FastAPI()
     hub = RoomHub(
@@ -133,6 +133,26 @@ def create_app(
             while True:
                 data = await ws.receive_json()
                 if isinstance(data, dict) and data.get("action"):
+                    # 내보낸 일정 기록(방 멤버 공유) — 상태 저장(store)과 무관.
+                    if data.get("action") == "add_export":
+                        if export_store is not None:
+                            try:
+                                await export_store.append(room_id, {
+                                    "title": data.get("title", ""), "dates": data.get("dates", ""),
+                                    "html": data.get("html", ""), "ts": data.get("ts"),
+                                })
+                            except Exception:  # noqa: BLE001
+                                pass
+                        continue
+                    if data.get("action") == "list_exports":
+                        items = []
+                        if export_store is not None:
+                            try:
+                                items = await export_store.recent(room_id, 30)
+                            except Exception:  # noqa: BLE001
+                                items = []
+                        await ws.send_json({"type": "exports", "items": list(reversed(items))})
+                        continue
                     # 상태 변경 액션(후보 추가·확정·선호 등)
                     if store is None:
                         await ws.send_json(

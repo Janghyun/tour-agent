@@ -11,6 +11,7 @@ export function connectRoom(url, handlers = {}) {
     }
     if (msg?.type === "card") handlers.onCard?.(msg.card, msg);
     else if (msg?.type === "state") handlers.onState?.(msg.state, msg);
+    else if (msg?.type === "exports") handlers.onExports?.(msg.items || []);
     else if (msg?.type === "error") handlers.onError?.(msg.text, msg);
     else if (msg?.text != null) handlers.onText?.(msg);
   };
