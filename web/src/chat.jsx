@@ -1,9 +1,20 @@
 /* 채팅 메시지 + 컴포저 — 디자인 프로토타입에서 포팅(ESM), 백엔드 메시지로 구동.
  * 메시지: 사람 {author,text} · 봇 텍스트 {author:"봇",text} · 봇 카드 {author:"봇",card} · 시스템 {author:"시스템",text} */
 import { useEffect, useRef, useState } from "react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Icon } from "./icons.jsx";
 import { SLASH } from "./constants.js";
 import { PlaceOptionsCard, ItineraryCard, MapCard, CompareCard } from "./cards.jsx";
+
+// 봇 텍스트는 보통 markdown(표·볼드·리스트) — 버블 안에서 포맷에 맞춰 렌더한다.
+function BotMarkdown({ text }) {
+  return (
+    <div className="bubble bot md" style={{ maxWidth: 560 }}>
+      <Markdown remarkPlugins={[remarkGfm]}>{text || ""}</Markdown>
+    </div>
+  );
+}
 
 const MEM_COLORS = ["#1F8A5B", "#FF7A59", "#2F86C7", "#9B6FE0", "#E0567B", "#E8962F"];
 function colorFor(name = "") {
@@ -45,7 +56,7 @@ function Message({ m, ctx }) {
           {m.card ? <CardBody card={m.card} ctx={ctx} /> : (
             sys
               ? <div className="state-error" style={{ maxWidth: 560 }}>{m.text}</div>
-              : <div className="bubble bot" style={{ maxWidth: 560 }}>{m.text}</div>
+              : <BotMarkdown text={m.text} />
           )}
         </div>
       </div>
