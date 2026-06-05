@@ -130,7 +130,8 @@ export function Guide({ compact = false }) {
   );
 }
 
-function TypingBubble({ elapsed }) {
+function TypingBubble({ elapsed, query }) {
+  const q = (query || "").replace(/^@봇\s*/, "").trim();
   return (
     <div className="msg bot fade-in">
       <div className="ava"><Icon.bot s={18} /></div>
@@ -141,6 +142,11 @@ function TypingBubble({ elapsed }) {
             응답 준비 중{elapsed > 0 ? ` · ${elapsed}초` : ""}
           </span>
         </div>
+        {q && (
+          <div style={{ fontSize: 12, color: "var(--ink-3)", margin: "1px 0 5px", maxWidth: 460, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            “{q}” 처리 중…
+          </div>
+        )}
         <div className="bubble bot typing-bubble" aria-label="여행봇이 응답을 준비하고 있어요">
           <span className="typing-dot"></span><span className="typing-dot"></span><span className="typing-dot"></span>
         </div>
@@ -149,7 +155,7 @@ function TypingBubble({ elapsed }) {
   );
 }
 
-export function ChatArea({ messages, pending, elapsed, ctx, composer }) {
+export function ChatArea({ messages, pending, elapsed, pendingText, ctx, composer }) {
   const ref = useRef(null);
   useEffect(() => {
     const el = ref.current;
@@ -162,7 +168,7 @@ export function ChatArea({ messages, pending, elapsed, ctx, composer }) {
           <div className="day-divider"><span className="ln"></span><span className="lbl">오늘</span><span className="ln"></span></div>
           {messages.length === 0 && <Guide />}
           {messages.map((m) => <Message key={m._k} m={m} ctx={ctx} />)}
-          {pending && <TypingBubble elapsed={elapsed} />}
+          {pending && <TypingBubble elapsed={elapsed} query={pendingText} />}
         </div>
       </div>
       {composer}

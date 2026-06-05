@@ -90,6 +90,7 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
   const [state, setState] = useState(null);
   const [copied, setCopied] = useState(false);
   const [pending, setPending] = useState(false); // 봇 응답 대기 중(타이핑 인디케이터)
+  const [pendingText, setPendingText] = useState(""); // 대기 중인 질문 내용
   const [elapsed, setElapsed] = useState(0); // 봇 응답 경과 시간(초)
   const [showGuide, setShowGuide] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -141,10 +142,10 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
   const handleSend = (text) => {
     connRef.current?.sendChat(me, text);
     const t = (text || "").trimStart();
-    if (t.includes("@봇") || t.startsWith("/")) setPending(true);
+    if (t.includes("@봇") || t.startsWith("/")) { setPending(true); setPendingText(text); }
   };
   // 채팅 링크의 '후보 등록' 버튼 — 링크의 장소를 검색해 후보로.
-  const addLink = (url) => { connRef.current?.sendAction({ action: "add_place_by_link", url }); setPending(true); };
+  const addLink = (url) => { connRef.current?.sendAction({ action: "add_place_by_link", url }); setPending(true); setPendingText("링크의 장소를 후보로 등록"); };
 
   // 일정 카드 '내보내기' — HTML 다운로드 + history 보관(나중에 다시 보기).
   const exportItin = (card) => {
@@ -233,6 +234,7 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
             messages={msgs}
             pending={pending}
             elapsed={elapsed}
+            pendingText={pendingText}
             ctx={{ me, addedIds, onAdd: addCandidate, onAddLink: addLink, onExport: exportItin, confirmed: state?.confirmed }}
             composer={<Composer onSend={handleSend} />}
           />

@@ -19,7 +19,7 @@ async def search_places_tool(
     *,
     x: float | None = None,
     y: float | None = None,
-    size: int = 8,
+    size: int = 6,
 ) -> str:
     """키워드로 장소를 검색해 에이전트가 읽을 요약을 만든다."""
     places = await client.keyword_search(query, x=x, y=y, size=size)
