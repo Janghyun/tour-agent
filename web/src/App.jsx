@@ -97,14 +97,14 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
   const [historyTick, setHistoryTick] = useState(0);
   const connRef = useRef(null);
   const keyRef = useRef(2_000_000); // 복원 메시지 _k와 충돌 방지(새 메시지는 큰 값부터)
+  const startRef = useRef(0); // 봇 응답 시작 시각(소요 시간 계산용)
 
   const push = (m) => setMsgs((xs) => [...xs, { _k: keyRef.current++, ...m }]);
 
   // 봇 응답 대기 중 경과 시간 카운트.
   useEffect(() => {
     if (!pending) { setElapsed(0); return; }
-    const t0 = Date.now();
-    const id = setInterval(() => setElapsed(Math.round((Date.now() - t0) / 1000)), 500);
+    const id = setInterval(() => setElapsed(Math.round((Date.now() - startRef.current) / 1000)), 500);
     return () => clearInterval(id);
   }, [pending]);
 
@@ -119,10 +119,24 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
         }
       },
       onClose: () => setStatus("연결 끊김"),
-      onText: (m) => { if (m.speaker === "봇") setPending(false); push({ author: m.speaker, text: m.text }); },
-      onCard: (card) => { setPending(false); push({ card }); },
+      onText: (m) => {
+        if (m.speaker === "봇") {
+          const took = startRef.current ? Math.round((Date.now() - startRef.current) / 1000) : null;
+          startRef.current = 0;
+          setPending(false);
+          push({ author: m.speaker, text: m.text, took });
+        } else {
+          push({ author: m.speaker, text: m.text });
+        }
+      },
+      onCard: (card) => {
+        const took = startRef.current ? Math.round((Date.now() - startRef.current) / 1000) : null;
+        startRef.current = 0;
+        setPending(false);
+        push({ card, took });
+      },
       onState: (s) => setState(s),
-      onError: (t) => { setPending(false); push({ author: "시스템", text: "⚠ " + t }); },
+      onError: (t) => { startRef.current = 0; setPending(false); push({ author: "시스템", text: "⚠ " + t }); },
     });
     connRef.current = conn;
     return () => conn.close();
@@ -142,10 +156,10 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
   const handleSend = (text) => {
     connRef.current?.sendChat(me, text);
     const t = (text || "").trimStart();
-    if (t.includes("@봇") || t.startsWith("/")) { setPending(true); setPendingText(text); }
+    if (t.includes("@봇") || t.startsWith("/")) { setPending(true); setPendingText(text); startRef.current = Date.now(); }
   };
   // 채팅 링크의 '후보 등록' 버튼 — 링크의 장소를 검색해 후보로.
-  const addLink = (url) => { connRef.current?.sendAction({ action: "add_place_by_link", url }); setPending(true); setPendingText("링크의 장소를 후보로 등록"); };
+  const addLink = (url) => { connRef.current?.sendAction({ action: "add_place_by_link", url }); setPending(true); setPendingText("링크의 장소를 후보로 등록"); startRef.current = Date.now(); };
 
   // 일정 카드 '내보내기' — HTML 다운로드 + history 보관(나중에 다시 보기).
   const exportItin = (card) => {

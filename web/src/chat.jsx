@@ -54,6 +54,7 @@ function Message({ m, ctx }) {
           <div className="who">
             <span className="name">{sys ? "시스템" : "여행봇"}</span>
             {!sys && <span className="bot-tag">BOT</span>}
+            {m.took != null && <span style={{ fontSize: 11, color: "var(--ink-4)", marginLeft: 6 }}>{m.took}초 걸림</span>}
           </div>
           {m.card ? <CardBody card={m.card} ctx={ctx} /> : (
             sys
