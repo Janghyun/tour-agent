@@ -24,10 +24,16 @@ function Fit({ positions }) {
   return null;
 }
 
-export default function MapModal({ stops, title, onClose }) {
-  const pts = (stops || [])
+export default function MapModal({ stops, lodging, title, onClose }) {
+  const itemPts = (stops || [])
     .filter((s) => s.x && s.y)
     .map((s) => ({ name: s.name, lat: +s.y, lng: +s.x, cat: catKey(s.category), place_url: s.place_url }));
+  const lodge = lodging && lodging.x && lodging.y
+    ? { name: lodging.name || "숙소", lat: +lodging.y, lng: +lodging.x, cat: "lodging", isLodge: true }
+    : null;
+  const pts = lodge ? [lodge, ...itemPts] : itemPts;
+  let n = 0;
+  pts.forEach((p) => { p.label = p.isLodge ? "🏠" : String(++n); });
   const positions = pts.map((p) => [p.lat, p.lng]);
   const center = positions[0] || [33.38, 126.55];
 
@@ -51,8 +57,8 @@ export default function MapModal({ stops, title, onClose }) {
                 <Polyline positions={positions} pathOptions={{ color: "#1F8A5B", weight: 3, dashArray: "6 8" }} />
               )}
               {pts.map((p, i) => (
-                <Marker key={i} position={[p.lat, p.lng]} icon={numIcon(i + 1, (CAT[p.cat] || CAT.sight).bg)}>
-                  <Tooltip direction="top" offset={[0, -14]}>{i + 1}. {p.name}</Tooltip>
+                <Marker key={i} position={[p.lat, p.lng]} icon={numIcon(p.label, (CAT[p.cat] || CAT.sight).bg)}>
+                  <Tooltip direction="top" offset={[0, -14]}>{p.label}. {p.name}{p.isLodge ? " (숙소)" : ""}</Tooltip>
                 </Marker>
               ))}
               <Fit positions={positions} />

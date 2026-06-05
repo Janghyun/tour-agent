@@ -84,12 +84,18 @@ export function PlaceOptionsCard({ card, addedIds, onAdd }) {
   );
 }
 
-// 일정 카드 안 미니맵 — 항목 좌표로 번호 핀 + 동선(점선). 번호를 누르면 장소 정보. 좌표 2곳 미만이면 생략.
-function ItinMiniMap({ stops, title }) {
+// 일정 카드 안 미니맵 — 숙소(🏠 출발) + 항목 번호 핀 + 동선(점선). 핀을 누르면 장소 정보.
+function ItinMiniMap({ stops, lodging, title }) {
   const [sel, setSel] = useState(null);
   const [big, setBig] = useState(false);
-  const pts = stops.filter((s) => s.x && s.y).map((s) => ({ name: s.name, x: +s.x, y: +s.y, cat: catKey(s.category), category: s.category, place_url: s.place_url }));
+  const itemPts = stops.filter((s) => s.x && s.y).map((s) => ({ name: s.name, x: +s.x, y: +s.y, cat: catKey(s.category), category: s.category, place_url: s.place_url }));
+  const lodge = lodging && lodging.x && lodging.y
+    ? { name: lodging.name || "숙소", x: +lodging.x, y: +lodging.y, cat: "lodging", category: "숙소", place_url: lodging.place_url, isLodge: true }
+    : null;
+  const pts = lodge ? [lodge, ...itemPts] : itemPts;
   if (pts.length < 2) return null;
+  let n = 0;
+  const labels = pts.map((p) => (p.isLodge ? "🏠" : String(++n)));
   const W = 100, H = 58, pad = 12;
   const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
   const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
@@ -104,25 +110,25 @@ function ItinMiniMap({ stops, title }) {
         {pts.map((p, i) => (
           <g key={i} onClick={() => setSel(sel === i ? null : i)} style={{ cursor: "pointer" }}>
             <circle cx={co[i][0]} cy={co[i][1]} r={sel === i ? 5.8 : 4.6} fill={(CAT[p.cat] || CAT.sight).bg} stroke="#fff" strokeWidth={sel === i ? 1.8 : 1.3} />
-            <text x={co[i][0]} y={co[i][1] + 1.7} textAnchor="middle" fontSize="4.6" fontWeight="700" fill="#fff" style={{ pointerEvents: "none" }}>{i + 1}</text>
+            <text x={co[i][0]} y={co[i][1] + (p.isLodge ? 1.5 : 1.7)} textAnchor="middle" fontSize={p.isLodge ? 4 : 4.6} fontWeight="700" fill="#fff" style={{ pointerEvents: "none" }}>{labels[i]}</text>
           </g>
         ))}
       </svg>
-      <span style={{ position: "absolute", left: 8, bottom: 6, fontSize: 10.5, color: "var(--ink-3)", background: "rgba(255,255,255,.7)", borderRadius: 6, padding: "1px 6px" }}>번호를 누르면 장소 정보</span>
+      <span style={{ position: "absolute", left: 8, bottom: 6, fontSize: 10.5, color: "var(--ink-3)", background: "rgba(255,255,255,.7)", borderRadius: 6, padding: "1px 6px" }}>🏠 숙소 출발 · 번호=방문 순서</span>
       <button onClick={() => setBig(true)} title="실제 지도로 크게 보기"
               style={{ position: "absolute", right: 8, bottom: 6, display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "var(--accent-700)", background: "rgba(255,255,255,.85)", border: "1px solid var(--line)", borderRadius: 8, padding: "3px 8px", cursor: "pointer" }}>
         <Icon.map s={13} /> 지도 확대
       </button>
       {big && (
         <Suspense fallback={null}>
-          <MapModal stops={stops} title={title} onClose={() => setBig(false)} />
+          <MapModal stops={stops} lodging={lodge} title={title} onClose={() => setBig(false)} />
         </Suspense>
       )}
       {s && (
         <div style={{ position: "absolute", left: 8, right: 8, top: 8, background: "var(--surface)", border: "1px solid var(--line)", borderRadius: 10, boxShadow: "var(--sh-2)", padding: "8px 10px", display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ width: 22, height: 22, flex: "none", borderRadius: "50%", background: (CAT[s.cat] || CAT.sight).bg, color: "#fff", fontSize: 12, fontWeight: 800, display: "grid", placeItems: "center" }}>{sel + 1}</span>
+          <span style={{ width: 22, height: 22, flex: "none", borderRadius: "50%", background: (CAT[s.cat] || CAT.sight).bg, color: "#fff", fontSize: s.isLodge ? 12 : 12, fontWeight: 800, display: "grid", placeItems: "center" }}>{labels[sel]}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
+            <div style={{ fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}{s.isLodge ? " (숙소)" : ""}</div>
             <div style={{ marginTop: 2 }}><CatPill cat={s.cat} /></div>
           </div>
           <a href={placeLink(s)} target="_blank" rel="noreferrer" className="btn btn-soft btn-sm" style={{ flex: "none" }}><Icon.search s={13} /> 카카오맵</a>
@@ -161,7 +167,8 @@ export function ItineraryCard({ card, confirmed, onExport }) {
               <span className="dl">{d.date || `Day ${di + 1}`}</span>
               {d.accommodation && <span className="ds">· 숙소 {d.accommodation}</span>}
             </div>
-            <ItinMiniMap stops={d.items || []} title={`${d.date || `Day ${di + 1}`} 동선`} />
+            <ItinMiniMap stops={d.items || []} title={`${d.date || `Day ${di + 1}`} 동선`}
+                         lodging={d.acc_x && d.acc_y ? { name: d.accommodation, x: d.acc_x, y: d.acc_y } : null} />
             <div className="tl-track">
               {(d.items || []).map((it, ii) => (
                 <div className="tl-stop" key={ii}>
