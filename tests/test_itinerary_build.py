@@ -43,6 +43,20 @@ async def test_build_uses_route_finder_for_travel():
     assert any(t and "20분" in t for t in travels)  # 실제 경로 시간 반영
 
 
+async def test_build_passes_meal_alternatives():
+    plan = {"days": [{
+        "accommodation": "애월 숙소",
+        "items": [
+            {"name": "성산일출봉"},
+            {"name": "돈사돈", "category": "흑돼지", "meal": "dinner", "alternatives": ["흑돈가", "숙성도"]},
+        ],
+    }]}
+    card = await build_itinerary(plan, place_finder=_finder)
+    by = {i["name"]: i for i in card["days"][0]["items"]}
+    assert [a["name"] for a in by["돈사돈"]["alternatives"]] == ["흑돈가", "숙성도"]
+    assert by["성산일출봉"].get("alternatives", []) == []  # 대안 없는 항목은 빈 목록
+
+
 async def test_build_drops_outlier_region():
     async def finder(q):
         if q == "엉뚱식당":

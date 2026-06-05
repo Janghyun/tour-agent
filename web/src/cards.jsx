@@ -139,6 +139,45 @@ function ItinMiniMap({ stops, lodging, title }) {
   );
 }
 
+// 타임라인 한 항목 — 시간·장소·이동시간 + (식사면) 대안 맛집 펼침.
+function TlStop({ it }) {
+  const [showAlt, setShowAlt] = useState(false);
+  const alts = it.alternatives || [];
+  return (
+    <div className="tl-stop">
+      <div className="node"><i></i></div>
+      <div className="tl-card">
+        <span className="tl-time">{it.time || ""}</span>
+        <div className="tl-body">
+          <div className="nm">
+            <a href={placeLink(it)} target="_blank" rel="noreferrer" title="카카오맵에서 보기" style={{ color: "inherit", textDecoration: "none" }}>
+              {it.name} <Icon.search s={11} style={{ color: "var(--ink-4)", verticalAlign: "-1px" }} />
+            </a>
+            {it.category && <> <CatPill cat={catKey(it.category)} /></>}
+          </div>
+          {it.travel_from_prev && <div className="sub">{it.travel_from_prev}</div>}
+          {alts.length > 0 && (
+            <div style={{ marginTop: 5 }}>
+              <button onClick={() => setShowAlt((v) => !v)} style={{ border: "none", background: "transparent", color: "var(--accent-700)", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}>
+                다른 맛집 {alts.length}곳 {showAlt ? "▲" : "▼"}
+              </button>
+              {showAlt && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 4 }}>
+                  {alts.map((a, i) => (
+                    <a key={i} href={placeLink(a)} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: "var(--ink-2)", textDecoration: "none" }}>
+                      · {a.name} <Icon.search s={11} style={{ color: "var(--ink-4)", verticalAlign: "-1px" }} />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ItineraryCard({ card, confirmed, onExport }) {
   const days = card.days || [];
   return (
@@ -170,23 +209,7 @@ export function ItineraryCard({ card, confirmed, onExport }) {
             <ItinMiniMap stops={d.items || []} title={`${d.date || `Day ${di + 1}`} 동선`}
                          lodging={d.acc_x && d.acc_y ? { name: d.accommodation, x: d.acc_x, y: d.acc_y } : null} />
             <div className="tl-track">
-              {(d.items || []).map((it, ii) => (
-                <div className="tl-stop" key={ii}>
-                  <div className="node"><i></i></div>
-                  <div className="tl-card">
-                    <span className="tl-time">{it.time || ""}</span>
-                    <div className="tl-body">
-                      <div className="nm">
-                        <a href={placeLink(it)} target="_blank" rel="noreferrer" title="카카오맵에서 보기" style={{ color: "inherit", textDecoration: "none" }}>
-                          {it.name} <Icon.search s={11} style={{ color: "var(--ink-4)", verticalAlign: "-1px" }} />
-                        </a>
-                        {it.category && <> <CatPill cat={catKey(it.category)} /></>}
-                      </div>
-                      {it.travel_from_prev && <div className="sub">{it.travel_from_prev}</div>}
-                    </div>
-                  </div>
-                </div>
-              ))}
+              {(d.items || []).map((it, ii) => <TlStop key={ii} it={it} />)}
             </div>
           </div>
         ))}

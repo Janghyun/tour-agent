@@ -120,6 +120,10 @@ COMPOSE_ITINERARY_SCHEMA = {
                                 "name": {"type": "string"},
                                 "category": {"type": "string"},
                                 "meal": {"type": "string"},  # lunch/dinner 등(선택)
+                                "alternatives": {  # 식사 슬롯의 대안 맛집 이름 2~3곳(선택)
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                },
                             },
                             "required": ["name"],
                         },

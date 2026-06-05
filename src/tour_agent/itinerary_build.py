@@ -82,13 +82,17 @@ async def build_itinerary(plan, *, place_finder, route_finder=None, start_hour: 
                 "category": it.get("category") or p.category,
                 "x": p.x, "y": p.y, "place_url": p.place_url,
                 "travel_from_prev": travel,
+                "alternatives": [{"name": a} for a in (it.get("alternatives") or []) if a],
             })
             t += _STAY_MIN
             prev = (p.x, p.y)
 
         # 좌표를 못 찾은 항목은 동선에서 빼고 이름만 뒤에 둔다(지도엔 안 찍힘).
         for it in unlocated:
-            items_out.append({"name": it["name"], "category": it.get("category", ""), "note": "위치 확인 필요"})
+            items_out.append({
+                "name": it["name"], "category": it.get("category", ""), "note": "위치 확인 필요",
+                "alternatives": [{"name": a} for a in (it.get("alternatives") or []) if a],
+            })
 
         d = {"date": day.get("date"), "accommodation": acc_name, "items": items_out}
         if acc_p and near(acc_p):
