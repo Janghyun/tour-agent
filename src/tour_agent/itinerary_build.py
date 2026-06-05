@@ -37,7 +37,8 @@ async def build_itinerary(plan, *, place_finder, route_finder=None, start_hour: 
     title = plan.get("title") or "여행 일정"
     days_out = []
 
-    for day in plan.get("days", []):
+    for di, day in enumerate(plan.get("days", [])):
+        is_first = di == 0
         acc_name = day.get("accommodation")
         raw = [it for it in day.get("items", []) if isinstance(it, dict) and it.get("name")]
 
@@ -58,14 +59,24 @@ async def build_itinerary(plan, *, place_finder, route_finder=None, start_hour: 
         located = [(it, p) for it, p in zip(raw, firsts) if near(p)]
         unlocated = [it for it, p in zip(raw, firsts) if not near(p)]
 
-        # 동선 정렬(숙소 출발 기준)
-        if acc_p and near(acc_p) and located:
+        # 동선 정렬: 첫날은 숙소가 출발이 아니라 마지막(도착지에서 시작해 숙소 체크인으로 끝).
+        # 둘째날부터는 숙소에서 출발한다.
+        lodge_start = (not is_first) and acc_p is not None and near(acc_p)
+        if lodge_start and located:
             order = optimize_route((acc_p.x, acc_p.y), [(p.x, p.y) for _, p in located])
             located = [located[i] for i in order]
+        elif located:
+            # 첫 항목(공항·도착지 등)에서 출발해 나머지를 동선 최적화로 잇는다.
+            head = located[0]
+            rest = located[1:]
+            if rest:
+                order = optimize_route((head[1].x, head[1].y), [(p.x, p.y) for _, p in rest])
+                rest = [rest[i] for i in order]
+            located = [head, *rest]
 
         items_out = []
         t = start_hour * 60
-        prev = (acc_p.x, acc_p.y) if (acc_p and near(acc_p)) else None
+        prev = (acc_p.x, acc_p.y) if lodge_start else None
         for it, p in located:
             travel = ""
             if route_finder is not None and prev is not None:
@@ -95,7 +106,7 @@ async def build_itinerary(plan, *, place_finder, route_finder=None, start_hour: 
             })
 
         d = {"date": day.get("date"), "accommodation": acc_name, "items": items_out}
-        if acc_p and near(acc_p):
+        if lodge_start:  # 숙소에서 출발하는 날만 출발 핀 표시(첫날 제외)
             d["acc_x"], d["acc_y"] = acc_p.x, acc_p.y
         days_out.append(d)
 

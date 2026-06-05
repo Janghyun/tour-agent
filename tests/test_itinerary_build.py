@@ -29,7 +29,6 @@ async def test_build_fills_coords_orders_and_times():
     day = card["days"][0]
     assert all(i.get("x") and i.get("y") for i in day["items"])  # 좌표 채움
     assert [i["time"] for i in day["items"]] == sorted(i["time"] for i in day["items"])  # 시간 오름차순
-    assert day["acc_x"] == 126.31 and day["acc_y"] == 33.46  # 숙소 좌표
     assert {i["name"] for i in day["items"]} == {"우도", "성산일출봉", "돈사돈"}
 
 
@@ -55,6 +54,18 @@ async def test_build_passes_meal_alternatives():
     by = {i["name"]: i for i in card["days"][0]["items"]}
     assert [a["name"] for a in by["돈사돈"]["alternatives"]] == ["흑돈가", "숙성도"]
     assert by["성산일출봉"].get("alternatives", []) == []  # 대안 없는 항목은 빈 목록
+
+
+async def test_first_day_does_not_start_from_lodging():
+    plan = {"days": [
+        {"accommodation": "애월 숙소", "items": [{"name": "성산일출봉"}, {"name": "우도"}]},  # 첫날
+        {"accommodation": "애월 숙소", "items": [{"name": "돈사돈"}, {"name": "성산일출봉"}]},  # 둘째날
+    ]}
+    card = await build_itinerary(plan, place_finder=_finder)
+    # 첫날은 숙소가 출발점이 아니므로 출발 핀(acc) 없음
+    assert "acc_x" not in card["days"][0]
+    # 둘째날부터는 숙소에서 출발(출발 핀)
+    assert card["days"][1].get("acc_x") == 126.31
 
 
 async def test_build_drops_outlier_region():
