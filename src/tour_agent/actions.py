@@ -52,6 +52,18 @@ async def add_candidate_by_query(
     return place
 
 
+async def add_candidate_by_link(
+    store: StateStore, room_id: str, url: str, *, url_resolver, place_finder, emit_state: EmitState
+):
+    """링크에서 장소명을 뽑아(``url_resolver``) 검색·등록한다. 이름을 못 얻으면 None."""
+    name = await url_resolver(url)
+    if not name:
+        return None
+    return await add_candidate_by_query(
+        store, room_id, name, place_finder=place_finder, emit_state=emit_state
+    )
+
+
 async def apply_action(
     store: StateStore, room_id: str, action: dict, *, emit_state: EmitState
 ) -> None:

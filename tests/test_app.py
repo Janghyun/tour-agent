@@ -178,6 +178,39 @@ async def test_slash_candidate_registers_via_finder():
     assert saved.candidates[0].x == 126.94  # 좌표까지 등록
 
 
+async def test_add_place_by_link_registers():
+    from tour_agent.kakao import Place
+
+    store = InMemoryStateStore()
+
+    async def resolver(url):
+        assert "kakao" in url
+        return "성산일출봉"
+
+    async def finder(q):
+        assert q == "성산일출봉"
+        return [Place("1", "성산일출봉", "명소", "", "", 126.94, 33.46, "")]
+
+    app = create_app(
+        agent_factory=lambda room_id, emit_card: EchoAgent(),
+        store=store, place_finder=finder, url_resolver=resolver, debounce_seconds=0.05,
+    )
+    async with _ServerThread(app) as port:
+        uri = f"ws://127.0.0.1:{port}/ws/jeju"
+        async with websockets.connect(uri) as ws:
+            await ws.send(json.dumps({"action": "add_place_by_link", "url": "https://place.map.kakao.com/123"}))
+            got = False
+            for _ in range(6):
+                m = json.loads(await asyncio.wait_for(ws.recv(), 5))
+                if m.get("type") == "state" and m["state"]["candidates"]:
+                    got = True
+                    break
+
+    assert got
+    saved = await store.load("jeju")
+    assert [p.name for p in saved.candidates] == ["성산일출봉"]
+
+
 async def test_human_chat_broadcasts_to_room():
     app = create_app(
         agent_factory=lambda room_id, emit_card: EchoAgent(), debounce_seconds=0.05

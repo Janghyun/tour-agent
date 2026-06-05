@@ -14,7 +14,7 @@ from typing import Awaitable, Callable
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
-from .actions import ActionError, add_candidate_by_query, apply_action
+from .actions import ActionError, add_candidate_by_link, add_candidate_by_query, apply_action
 from .groupchat import AgentRunner, Message, Room
 from .state import itinerary_card_to_places, state_view
 
@@ -86,7 +86,8 @@ class RoomHub:
 
 
 def create_app(
-    agent_factory: AgentFactory, *, store=None, debounce_seconds: float = 1.5, place_finder=None
+    agent_factory: AgentFactory, *, store=None, debounce_seconds: float = 1.5,
+    place_finder=None, url_resolver=None,
 ) -> FastAPI:
     app = FastAPI()
     hub = RoomHub(agent_factory, store=store, debounce_seconds=debounce_seconds)
@@ -112,6 +113,23 @@ def create_app(
                         await ws.send_json(
                             {"speaker": "시스템", "type": "error", "text": "상태 저장이 비활성화됨"}
                         )
+                        continue
+                    if data.get("action") == "add_place_by_link":
+                        # 채팅 링크의 '후보 등록' 버튼 — 링크에서 장소명을 뽑아 검색·등록.
+                        if place_finder is None or url_resolver is None:
+                            await ws.send_json({"speaker": "시스템", "type": "error", "text": "링크 등록이 비활성이에요(검색 키 없음)."})
+                            continue
+                        try:
+                            place = await add_candidate_by_link(
+                                store, room_id, data.get("url", ""),
+                                url_resolver=url_resolver, place_finder=place_finder, emit_state=emit_state,
+                            )
+                        except Exception:  # noqa: BLE001
+                            place = None
+                        if place is None:
+                            await ws.send_json({"speaker": "시스템", "type": "error", "text": "링크에서 장소를 찾지 못했어요. ‘/후보 장소명’으로 등록해 보세요."})
+                        else:
+                            await hub.broadcast_json(room_id, {"speaker": "봇", "text": f"‘{place.name}’을(를) 후보에 담았어요."})
                         continue
                     try:
                         await apply_action(store, room_id, data, emit_state=emit_state)

@@ -131,6 +131,8 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
     const t = (text || "").trimStart();
     if (t.includes("@봇") || t.startsWith("/")) setPending(true);
   };
+  // 채팅 링크의 '후보 등록' 버튼 — 링크의 장소를 검색해 후보로.
+  const addLink = (url) => { connRef.current?.sendAction({ action: "add_place_by_link", url }); setPending(true); };
 
   const [tab, setTab] = useState("cand");
   const [selectedId, setSelectedId] = useState(null);
@@ -206,7 +208,7 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
           <ChatArea
             messages={msgs}
             pending={pending}
-            ctx={{ me, addedIds, onAdd: addCandidate, confirmed: state?.confirmed }}
+            ctx={{ me, addedIds, onAdd: addCandidate, onAddLink: addLink, confirmed: state?.confirmed }}
             composer={<Composer onSend={handleSend} />}
           />
         )}

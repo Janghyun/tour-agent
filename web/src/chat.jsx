@@ -23,6 +23,8 @@ function colorFor(name = "") {
   return MEM_COLORS[h % MEM_COLORS.length];
 }
 
+const URL_RE = /https?:\/\/[^\s]+/g;
+
 function fmt(text = "") {
   return text.split(/(@봇|\/[가-힣]+)/g).map((p, i) => {
     if (p === "@봇") return <span className="mention" key={i}>@봇</span>;
@@ -63,12 +65,22 @@ function Message({ m, ctx }) {
     );
   }
   const isMe = m.author === ctx.me;
+  const urls = (m.text || "").match(URL_RE) || [];
   return (
     <div className={"msg fade-in" + (isMe ? " me" : "")}>
       <div className="ava" style={{ background: colorFor(m.author) }}>{(m.author || "?")[0]}</div>
       <div className="body-col">
         <div className="who"><span className="name">{m.author}</span></div>
         <div className="bubble">{fmt(m.text)}</div>
+        {urls.length > 0 && ctx.onAddLink && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+            {urls.map((u, i) => (
+              <button key={i} className="btn btn-soft btn-sm" onClick={() => ctx.onAddLink(u)} title={u}>
+                <Icon.plus s={13} /> 이 링크 후보 등록
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

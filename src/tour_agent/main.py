@@ -63,6 +63,8 @@ except KakaoError:
 # emit_card는 방의 카드 브로드캐스트 — 작업 경로의 present_* 툴이 이걸로 카드를 내보낸다.
 # /후보·링크 등록용 장소 검색기(Kakao 키워드 검색). 키 없으면 비활성.
 _place_finder = (lambda q: _kakao.keyword_search(q)) if _kakao is not None else None
+# 링크 '후보 등록' 버튼: URL에서 장소명을 뽑아 검색에 넘긴다.
+from .link_resolver import resolve_place_name as _url_resolver  # noqa: E402
 
 app = create_app(
     agent_factory=lambda room_id, emit_card: build_default_runner(
@@ -70,6 +72,7 @@ app = create_app(
     ),
     store=_store,
     place_finder=_place_finder,
+    url_resolver=_url_resolver,
 )
 
 
