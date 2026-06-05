@@ -36,7 +36,7 @@ function fmt(text = "") {
 function CardBody({ card, ctx }) {
   if (card.type === "place_options")
     return <PlaceOptionsCard card={card} onAdd={ctx.onAdd} addedIds={ctx.addedIds} />;
-  if (card.type === "itinerary") return <ItineraryCard card={card} confirmed={ctx.confirmed} />;
+  if (card.type === "itinerary") return <ItineraryCard card={card} confirmed={ctx.confirmed} onExport={ctx.onExport} />;
   if (card.type === "compare")
     return <CompareCard card={card} onAdd={ctx.onAdd} addedIds={ctx.addedIds} />;
   if (card.type === "map") return <MapCard card={card} />;

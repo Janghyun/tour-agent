@@ -133,7 +133,7 @@ function ItinMiniMap({ stops, title }) {
   );
 }
 
-export function ItineraryCard({ card, confirmed }) {
+export function ItineraryCard({ card, confirmed, onExport }) {
   const days = card.days || [];
   return (
     <div className="card pop-in">
@@ -144,6 +144,11 @@ export function ItineraryCard({ card, confirmed }) {
           <div className="s">{days.length}일 · 동선·숙소 반영</div>
         </div>
         <div className="grow"></div>
+        {onExport && (
+          <button className="btn btn-soft btn-sm" style={{ marginRight: 6 }} onClick={() => onExport(card)} title="HTML로 저장(인쇄하면 PDF)">
+            <Icon.send s={13} /> 내보내기
+          </button>
+        )}
         {confirmed
           ? <span className="status-dot confirmed"><Icon.check s={13} /> 확정됨</span>
           : <span className="status-dot draft"><Icon.calendar s={12} /> 작업 중</span>}
