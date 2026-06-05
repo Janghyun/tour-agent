@@ -5,3 +5,5 @@ __pycache__/
 .DS_Store
 *.egg-info/
 .env
+supabase/.temp/
+supabase/.branches/
