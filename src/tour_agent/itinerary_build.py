@@ -56,6 +56,23 @@ async def build_itinerary(plan, *, place_finder, route_finder=None, start_hour: 
             def near(p) -> bool:  # noqa: ARG001
                 return False
 
+        # 권역 outlier 교정 — 같은 지역(near)이지만 중심에서 꽤 먼 항목은 동명 오매칭일 수 있어
+        # 권역 중심을 bias로 재검색해 더 가까운 결과가 있으면 교체한다.
+        for k in range(len(raw)):
+            p = firsts[k]
+            if not (p and p.x and p.y and near(p)):
+                continue
+            if abs(p.x - cx) <= 0.25 and abs(p.y - cy) <= 0.25:
+                continue
+            try:
+                r2 = await place_finder(raw[k]["name"], x=cx, y=cy)
+            except Exception:  # noqa: BLE001
+                r2 = None
+            if r2:
+                np_ = r2[0]
+                if np_ and np_.x and np_.y and (abs(np_.x - cx) + abs(np_.y - cy) < abs(p.x - cx) + abs(p.y - cy)):
+                    firsts[k] = np_
+
         located = [(it, p) for it, p in zip(raw, firsts) if near(p)]
         unlocated = [it for it, p in zip(raw, firsts) if not near(p)]
 

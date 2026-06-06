@@ -11,7 +11,7 @@ _DB = {
 }
 
 
-async def _finder(q):
+async def _finder(q, *, x=None, y=None, size=6):
     return [_DB[q]] if q in _DB else []
 
 
@@ -68,6 +68,21 @@ async def test_first_day_does_not_start_from_lodging():
     assert "acc_x" not in card["days"][0]
     # 둘째날부터는 숙소에서 출발(출발 핀)
     assert card["days"][1].get("acc_x") == 126.31
+
+
+async def test_build_rebiases_region_outlier():
+    # '흩어진곳' 첫 결과는 권역에서 멀고(서쪽), 중심 bias를 주면 동부 결과로 바뀐다 → 교정.
+    async def finder(q, *, x=None, y=None, size=6):
+        if q == "흩어진곳":
+            if x is None:
+                return [Place("", "흩어진곳", "식당", "", "", 126.49, 33.49, "u")]  # 멀리(서쪽)
+            return [Place("", "흩어진곳", "식당", "", "", 126.94, 33.46, "u2")]  # 중심 bias → 동부
+        return [_DB[q]] if q in _DB else []
+
+    plan = {"days": [{"items": [{"name": "성산일출봉"}, {"name": "우도"}, {"name": "흩어진곳"}]}]}
+    card = await build_itinerary(plan, place_finder=finder)
+    o = next(i for i in card["days"][0]["items"] if i["name"] == "흩어진곳")
+    assert abs(o["x"] - 126.94) < 0.1  # 권역 중심으로 재검색·교정됨
 
 
 async def test_build_drops_outlier_region():
