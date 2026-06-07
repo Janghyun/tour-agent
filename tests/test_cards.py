@@ -63,6 +63,63 @@ async def test_present_itinerary_without_finder_keeps_payload():
     assert emitted[0]["days"][0]["items"][0] == {"name": "성산"}  # 그대로
 
 
+async def test_present_place_options_enriches_missing_links():
+    from tour_agent.kakao import Place
+
+    emitted = []
+
+    async def emit(card):
+        emitted.append(card)
+
+    async def finder(q):
+        return [Place("1", q, "명소", "064", "제주 어딘가", 126.5, 33.5, "http://k/" + q, source="kakao")]
+
+    tools = {t.name: t for t in present_tools(emit, place_finder=finder)}
+    # 봇이 이름만 채운 AI 추천(좌표·링크·출처 없음)
+    await tools["present_place_options"].handler(
+        {"options": [{"name": "한라산"}, {"name": "협재해변"}]}
+    )
+
+    opts = emitted[0]["options"]
+    assert opts[0]["place_url"] == "http://k/한라산"  # 실링크로 보강
+    assert opts[0]["source"] == "kakao"  # 출처 태그도 보강
+    assert opts[0]["x"] == 126.5 and opts[0]["y"] == 33.5
+
+
+async def test_present_place_options_keeps_existing_search_fields():
+    from tour_agent.kakao import Place
+
+    emitted = []
+
+    async def emit(card):
+        emitted.append(card)
+
+    async def finder(q):  # 검색은 다른 값을 주지만 덮어쓰면 안 된다
+        return [Place("9", q, "x", "", "", 1.0, 2.0, "http://other", source="naver")]
+
+    tools = {t.name: t for t in present_tools(emit, place_finder=finder)}
+    await tools["present_place_options"].handler(
+        {"options": [{"name": "성산일출봉", "place_url": "http://place.map.kakao.com/123",
+                      "source": "kakao", "x": 126.9, "y": 33.4}]}
+    )
+
+    o = emitted[0]["options"][0]
+    assert o["place_url"] == "http://place.map.kakao.com/123"  # 이미 있으면 유지
+    assert o["source"] == "kakao"
+    assert o["x"] == 126.9
+
+
+async def test_present_place_options_without_finder_keeps_payload():
+    emitted = []
+
+    async def emit(card):
+        emitted.append(card)
+
+    tools = {t.name: t for t in present_tools(emit)}  # place_finder 없음
+    await tools["present_place_options"].handler({"options": [{"name": "한라산"}]})
+    assert emitted[0]["options"][0] == {"name": "한라산"}  # 그대로
+
+
 async def test_present_compare_emits_card_and_acks():
     emitted = []
 

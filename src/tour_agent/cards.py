@@ -219,6 +219,44 @@ async def _enrich_itinerary(card: dict, place_finder) -> None:
             d["acc_x"], d["acc_y"] = p.x, p.y
 
 
+async def _enrich_place_options(card: dict, place_finder) -> None:
+    """장소 옵션 카드의 각 옵션을 실제 검색해 링크·출처·좌표를 채운다.
+
+    봇이 이름만 채운 AI 추천이면 place_url/source가 없어 외부 링크가 죽는다(새 카카오맵은
+    ``?q=`` 검색을 무시한다). 이름으로 첫 검색 결과를 찾아 비어 있는 필드만 보강한다
+    (봇이 이미 검색해 채운 값은 덮어쓰지 않는다).
+    """
+    import asyncio
+
+    opts = [o for o in card.get("options", []) if isinstance(o, dict) and o.get("name")]
+    if not opts:
+        return
+
+    async def first(name: str):
+        try:
+            r = await place_finder(name)
+        except Exception:  # noqa: BLE001 - 개별 실패는 무시
+            return None
+        return r[0] if r else None
+
+    firsts = list(await asyncio.gather(*(first(o["name"]) for o in opts)))
+    for o, p in zip(opts, firsts):
+        if not p:
+            continue
+        if not o.get("place_url") and p.place_url:
+            o["place_url"] = p.place_url
+        if not o.get("source") and p.source:
+            o["source"] = p.source
+        if not o.get("x") and p.x:
+            o["x"] = p.x
+        if not o.get("y") and p.y:
+            o["y"] = p.y
+        if not o.get("category") and p.category:
+            o["category"] = p.category
+        if not o.get("address") and p.address:
+            o["address"] = p.address
+
+
 def present_tools(emit: CardSink, *, place_finder=None, route_finder=None) -> list[ToolSpec]:
     """방의 카드 싱크(emit)에 묶인 present_* ToolSpec들을 만든다.
 
@@ -229,8 +267,11 @@ def present_tools(emit: CardSink, *, place_finder=None, route_finder=None) -> li
     def _card_tool(name: str, card_type: str, description: str, schema: dict) -> ToolSpec:
         async def handler(args: dict) -> str:
             card = {"type": card_type, **args}
-            if card_type == "itinerary" and place_finder is not None:
-                await _enrich_itinerary(card, place_finder)
+            if place_finder is not None:
+                if card_type == "itinerary":
+                    await _enrich_itinerary(card, place_finder)
+                elif card_type == "place_options":
+                    await _enrich_place_options(card, place_finder)
             await emit(card)
             return f"{card_type} 카드를 표시했습니다."
 
