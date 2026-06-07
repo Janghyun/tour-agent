@@ -139,13 +139,18 @@ function ItinMiniMap({ stops, lodging, title }) {
   );
 }
 
-// 타임라인 한 항목 — 시간·장소·이동시간 + (식사면) 대안 맛집 펼침.
-function TlStop({ it }) {
+// 타임라인 한 항목 — 번호(지도 핀과 매칭)·시간·장소·이동시간 + (식사면) 대안 맛집 펼침.
+function TlStop({ it, num }) {
   const [showAlt, setShowAlt] = useState(false);
   const alts = it.alternatives || [];
+  const cat = catKey(it.category);
   return (
     <div className="tl-stop">
-      <div className="node"><i></i></div>
+      <div className="node" style={num != null ? { background: (CAT[cat] || CAT.sight).bg, borderColor: "#fff", boxShadow: "0 0 0 1.5px var(--line-2)" } : undefined}>
+        {num != null
+          ? <span style={{ color: "#fff", fontSize: 10.5, fontWeight: 800 }}>{num}</span>
+          : <i></i>}
+      </div>
       <div className="tl-card">
         <span className="tl-time">{it.time || ""}</span>
         <div className="tl-body">
@@ -153,7 +158,7 @@ function TlStop({ it }) {
             <a href={placeLink(it)} target="_blank" rel="noreferrer" title="카카오맵에서 보기" style={{ color: "inherit", textDecoration: "none" }}>
               {it.name} <Icon.search s={11} style={{ color: "var(--ink-4)", verticalAlign: "-1px" }} />
             </a>
-            {it.category && <> <CatPill cat={catKey(it.category)} /></>}
+            {it.category && <> <CatPill cat={cat} /></>}
           </div>
           {it.travel_from_prev && <div className="sub">{it.travel_from_prev}</div>}
           {alts.length > 0 && (
@@ -209,7 +214,13 @@ export function ItineraryCard({ card, confirmed, onExport }) {
             <ItinMiniMap stops={d.items || []} title={`${d.date || `Day ${di + 1}`} 동선`}
                          lodging={d.acc_x && d.acc_y ? { name: d.accommodation, x: d.acc_x, y: d.acc_y } : null} />
             <div className="tl-track">
-              {(d.items || []).map((it, ii) => <TlStop key={ii} it={it} />)}
+              {(() => {
+                let n = 0;
+                return (d.items || []).map((it, ii) => {
+                  const num = it.x && it.y ? ++n : null; // 좌표 있는 항목만 번호(지도 핀과 매칭)
+                  return <TlStop key={ii} it={it} num={num} />;
+                });
+              })()}
             </div>
           </div>
         ))}
