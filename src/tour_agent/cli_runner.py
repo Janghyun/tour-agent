@@ -67,9 +67,10 @@ class CliAgentRunner:
             return await asyncio.wait_for(self._run_turn(prompt), self._timeout)
         except asyncio.TimeoutError:
             # 너무 오래 걸리면 세션을 리셋(손상 방지)하고 안내한다 — 무한 대기 차단.
+            # aclose()(세션 종료) 자체가 멈출 수 있으므로 짧게 제한하고, 안 되면 세션 참조만 버린다.
             try:
-                await self.aclose()
-            except Exception:  # noqa: BLE001
+                await asyncio.wait_for(self.aclose(), 10)
+            except Exception:  # noqa: BLE001 - 종료가 멈추거나 실패해도 세션만 버리고 진행
                 self._session = None
             return (
                 "응답이 너무 오래 걸려 중단했어요. 요청을 더 간단히 하거나(예: ‘성산 근처 맛집 추천’) "

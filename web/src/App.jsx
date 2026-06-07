@@ -101,46 +101,73 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
 
   const push = (m) => setMsgs((xs) => [...xs, { _k: keyRef.current++, ...m }]);
 
-  // 봇 응답 대기 중 경과 시간 카운트.
+  // 봇 응답 대기 중 경과 시간 카운트 + 안전장치(끝내 응답이 없으면 인디케이터를 풀어준다).
   useEffect(() => {
     if (!pending) { setElapsed(0); return; }
-    const id = setInterval(() => setElapsed(Math.round((Date.now() - startRef.current) / 1000)), 500);
+    const id = setInterval(() => {
+      const sec = Math.round((Date.now() - startRef.current) / 1000);
+      setElapsed(sec);
+      if (sec >= 200) {  // 백엔드 150s 타임아웃보다 여유. 그래도 응답이 없으면 UI 잠금 해제.
+        startRef.current = 0;
+        setPending(false);
+        push({ author: "시스템", text: "⚠ 응답이 오지 않아 중단했어요. 잠시 후 다시 시도해 주세요." });
+      }
+    }, 500);
     return () => clearInterval(id);
   }, [pending]);
 
   useEffect(() => {
-    const conn = connectRoom(`${WS_BASE}/ws/${room}`, {
-      onOpen: () => {
-        setStatus("연결됨");
-        // 방을 만든 사람(host)만 방장·메타를 등록한다(참여자는 건드리지 않음).
-        if (role === "host" && meta) {
-          conn.sendAction({ action: "set_meta", destination: meta.destination || meta.dest || "", dates: meta.dates || "", owner: me });
-          if (meta.base) conn.sendAction({ action: "set_accommodation", place: { id: meta.base, name: meta.base, category: "숙소", address: "", x: 0, y: 0 } });
-        }
-      },
-      onClose: () => setStatus("연결 끊김"),
-      onText: (m) => {
-        if (m.speaker === "봇") {
+    let closed = false;       // 컴포넌트 정리/방 전환으로 우리가 닫은 경우(재연결 안 함)
+    let retry = null;
+    let attempts = 0;
+
+    const connect = () => {
+      const conn = connectRoom(`${WS_BASE}/ws/${room}`, {
+        onOpen: () => {
+          attempts = 0;
+          setStatus("연결됨");
+          // 재연결 시 백엔드가 history를 다시 보내므로, 중복을 막기 위해 메시지를 초기화하고
+          // 새로 받은 history로 다시 채운다(모든 메시지는 백엔드가 보존·재전송한다).
+          setMsgs([]);
+          // 방을 만든 사람(host)만 방장·메타를 등록한다(참여자는 건드리지 않음).
+          if (role === "host" && meta) {
+            conn.sendAction({ action: "set_meta", destination: meta.destination || meta.dest || "", dates: meta.dates || "", owner: me });
+            if (meta.base) conn.sendAction({ action: "set_accommodation", place: { id: meta.base, name: meta.base, category: "숙소", address: "", x: 0, y: 0 } });
+          }
+        },
+        onClose: () => {
+          if (closed) return;
+          // 대기 중이던 응답은 연결이 끊겨 못 받으니 인디케이터를 풀어준다(무한 '처리 중' 방지).
+          if (startRef.current) { startRef.current = 0; setPending(false); }
+          attempts += 1;
+          setStatus("연결 끊김 · 재연결 중…");
+          retry = setTimeout(connect, Math.min(1000 * attempts, 5000));
+        },
+        onText: (m) => {
+          if (m.speaker === "봇") {
+            const took = startRef.current ? Math.round((Date.now() - startRef.current) / 1000) : null;
+            startRef.current = 0;
+            setPending(false);
+            push({ author: m.speaker, text: m.text, took });
+          } else {
+            push({ author: m.speaker, text: m.text });
+          }
+        },
+        onCard: (card) => {
           const took = startRef.current ? Math.round((Date.now() - startRef.current) / 1000) : null;
           startRef.current = 0;
           setPending(false);
-          push({ author: m.speaker, text: m.text, took });
-        } else {
-          push({ author: m.speaker, text: m.text });
-        }
-      },
-      onCard: (card) => {
-        const took = startRef.current ? Math.round((Date.now() - startRef.current) / 1000) : null;
-        startRef.current = 0;
-        setPending(false);
-        push({ card, took });
-      },
-      onState: (s) => setState(s),
-      onExports: (items) => setHistoryItems(items),
-      onError: (t) => { startRef.current = 0; setPending(false); push({ author: "시스템", text: "⚠ " + t }); },
-    });
-    connRef.current = conn;
-    return () => conn.close();
+          push({ card, took });
+        },
+        onState: (s) => setState(s),
+        onExports: (items) => setHistoryItems(items),
+        onError: (t) => { startRef.current = 0; setPending(false); push({ author: "시스템", text: "⚠ " + t }); },
+      });
+      connRef.current = conn;
+    };
+
+    connect();
+    return () => { closed = true; if (retry) clearTimeout(retry); connRef.current?.close(); };
   }, [room]);
 
   const addCandidate = (o) =>
