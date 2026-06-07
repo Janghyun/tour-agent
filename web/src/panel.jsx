@@ -1,6 +1,5 @@
 /* panel.jsx — 사이드 패널(ESM): 후보 · 일정 · 지도 탭. 디자인 원본을 우리 백엔드 데이터
  * (candidates·preferences·working_itinerary)에 맞춰 포팅. 선호는 set_preference로 토글한다. */
-import { useState } from "react";
 import { Icon } from "./icons.jsx";
 import { CAT, catKey } from "./constants.js";
 import { MapView } from "./map.jsx";
@@ -133,8 +132,10 @@ function ItineraryTab({ itinerary, confirmed, isHost, onConfirm }) {
 }
 
 function MapTab({ candidates, accommodations, selectedId, onSelect }) {
+  // panel-body가 지도 탭에서 display:flex(가로)라, 래퍼가 flex로 폭을 채우지 않으면
+  // 내부 핀·SVG가 전부 absolute라 너비 0으로 찌그러져 지도가 안 보인다.
   return (
-    <div className="map-wrap" style={{ height: "100%", position: "relative" }}>
+    <div style={{ flex: 1, minWidth: 0, width: "100%", height: "100%", position: "relative" }}>
       <MapView candidates={candidates} accommodations={accommodations} selectedId={selectedId} onSelect={onSelect} />
     </div>
   );
