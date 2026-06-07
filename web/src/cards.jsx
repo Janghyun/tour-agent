@@ -28,13 +28,14 @@ export function CatPill({ cat }) {
   return <span className="cat-pill" style={{ background: c.pill, color: c.pinkText }}>{c.label}</span>;
 }
 
-// 장소의 외부 링크 — 봇이 준 place_url, 없으면 출처별 지도 검색으로 폴백(네이버 태그는 네이버로).
+// 장소의 외부 링크 — 출처에 맞는 지도로 보낸다.
+// 네이버 결과의 place_url은 가게 예약 사이트(catchtable 등)라 네이버 지도가 아니므로,
+// 네이버 태그는 항상 네이버 지도 검색으로 보낸다. 카카오·구글은 정확한 place_url을 우선.
 function placeLink(o) {
-  if (o.place_url) return o.place_url;
   const q = encodeURIComponent(o.name || "");
   if (o.source === "naver") return `https://map.naver.com/p/search/${q}`;
-  if (o.source === "google") return `https://www.google.com/maps/search/${q}`;
-  return `https://map.kakao.com/?q=${q}`;
+  if (o.source === "google") return o.place_url || `https://www.google.com/maps/search/${q}`;
+  return o.place_url || `https://map.kakao.com/?q=${q}`;
 }
 
 const SRC_LABEL = { kakao: "카카오", naver: "네이버", google: "구글" };
