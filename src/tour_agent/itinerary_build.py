@@ -28,6 +28,24 @@ async def _first(place_finder, name: str):
     return r[0] if r else None
 
 
+async def _resolve_item(place_finder, it: dict):
+    """항목을 검색해 (place, 표시이름, 남은 대안) 반환.
+
+    주 이름이 검색에 없으면(봇이 지어낸 환각 등) 대안 맛집 이름을 차례로 검색해
+    처음으로 잡히는 실제 가게로 대체한다. 어느 것도 못 찾으면 place=None.
+    """
+    name = it["name"]
+    alts = [a for a in (it.get("alternatives") or []) if a]
+    p = await _first(place_finder, name)
+    if p:
+        return p, name, alts
+    for alt in alts:
+        pa = await _first(place_finder, alt)
+        if pa:
+            return pa, alt, [a for a in alts if a != alt]
+    return None, name, alts
+
+
 def _hhmm(total_min: int) -> str:
     h, m = divmod(int(total_min), 60)
     return f"{h % 24:02d}:{m:02d}"
@@ -42,7 +60,10 @@ async def build_itinerary(plan, *, place_finder, route_finder=None, start_hour: 
         acc_name = day.get("accommodation")
         raw = [it for it in day.get("items", []) if isinstance(it, dict) and it.get("name")]
 
-        firsts = list(await asyncio.gather(*(_first(place_finder, it["name"]) for it in raw))) if raw else []
+        # 각 항목을 검색(없으면 대안으로 대체). items는 표시이름·남은 대안이 반영된 정규화 목록.
+        resolved = list(await asyncio.gather(*(_resolve_item(place_finder, it) for it in raw))) if raw else []
+        firsts = [r[0] for r in resolved]
+        items = [{**raw[k], "name": resolved[k][1], "alternatives": resolved[k][2]} for k in range(len(raw))]
         acc_p = await _first(place_finder, acc_name) if acc_name else None
 
         coords = [(p.x, p.y) for p in [*firsts, acc_p] if p and p.x and p.y]
@@ -58,14 +79,14 @@ async def build_itinerary(plan, *, place_finder, route_finder=None, start_hour: 
 
         # 권역 outlier 교정 — 같은 지역(near)이지만 중심에서 꽤 먼 항목은 동명 오매칭일 수 있어
         # 권역 중심을 bias로 재검색해 더 가까운 결과가 있으면 교체한다.
-        for k in range(len(raw)):
+        for k in range(len(items)):
             p = firsts[k]
             if not (p and p.x and p.y and near(p)):
                 continue
             if abs(p.x - cx) <= 0.25 and abs(p.y - cy) <= 0.25:
                 continue
             try:
-                r2 = await place_finder(raw[k]["name"], x=cx, y=cy)
+                r2 = await place_finder(items[k]["name"], x=cx, y=cy)
             except Exception:  # noqa: BLE001
                 r2 = None
             if r2:
@@ -73,8 +94,8 @@ async def build_itinerary(plan, *, place_finder, route_finder=None, start_hour: 
                 if np_ and np_.x and np_.y and (abs(np_.x - cx) + abs(np_.y - cy) < abs(p.x - cx) + abs(p.y - cy)):
                     firsts[k] = np_
 
-        located = [(it, p) for it, p in zip(raw, firsts) if near(p)]
-        unlocated = [it for it, p in zip(raw, firsts) if not near(p)]
+        located = [(it, p) for it, p in zip(items, firsts) if near(p)]
+        unlocated = [it for it, p in zip(items, firsts) if not near(p)]
 
         # 동선 정렬: 첫날은 숙소가 출발이 아니라 마지막(도착지에서 시작해 숙소 체크인으로 끝).
         # 둘째날부터는 숙소에서 출발한다.

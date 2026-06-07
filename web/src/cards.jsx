@@ -163,6 +163,7 @@ function TlStop({ it, num }) {
             {it.category && <> <CatPill cat={cat} /></>}
           </div>
           {it.travel_from_prev && <div className="sub">{it.travel_from_prev}</div>}
+          {it.note && <div className="sub" style={{ color: "var(--warn, #C2710C)" }}>⚠ {it.note}</div>}
           {alts.length > 0 && (
             <div style={{ marginTop: 5 }}>
               <button onClick={() => setShowAlt((v) => !v)} style={{ border: "none", background: "transparent", color: "var(--accent-700)", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}>

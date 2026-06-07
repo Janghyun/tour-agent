@@ -58,6 +58,34 @@ async def test_build_passes_meal_alternatives():
     assert by["성산일출봉"].get("alternatives", []) == []  # 대안 없는 항목은 빈 목록
 
 
+async def test_build_substitutes_found_alternative_when_primary_missing():
+    """주 식당이 검색 0건(환각)이면, 검색되는 대안으로 대체해 정보 없는 항목을 줄인다."""
+    plan = {"days": [{
+        "accommodation": "애월 숙소",
+        "items": [
+            {"name": "성산일출봉"},
+            {"name": "한그릇뚝딱 제주시", "category": "백반", "meal": "lunch",
+             "alternatives": ["없는집", "돈사돈"]},
+        ],
+    }]}
+    card = await build_itinerary(plan, place_finder=_finder)
+    names = [i["name"] for i in card["days"][0]["items"]]
+    assert "한그릇뚝딱 제주시" not in names  # 검색 0건 환각 이름은 빠짐
+    by = {i["name"]: i for i in card["days"][0]["items"]}
+    assert by["돈사돈"].get("x") and by["돈사돈"].get("y")  # 검색되는 대안으로 대체(좌표 포함)
+
+
+async def test_build_keeps_unlocated_when_no_alternative_found():
+    """주 식당도 대안도 검색 안 되면 이름만 '위치 확인 필요'로 남긴다(좌표 없음)."""
+    plan = {"days": [{
+        "accommodation": "애월 숙소",
+        "items": [{"name": "성산일출봉"}, {"name": "유령식당", "alternatives": ["또없는집"]}],
+    }]}
+    card = await build_itinerary(plan, place_finder=_finder)
+    g = next(i for i in card["days"][0]["items"] if i["name"] == "유령식당")
+    assert "x" not in g and g.get("note") == "위치 확인 필요"
+
+
 async def test_first_day_does_not_start_from_lodging():
     plan = {"days": [
         {"accommodation": "애월 숙소", "items": [{"name": "성산일출봉"}, {"name": "우도"}]},  # 첫날
