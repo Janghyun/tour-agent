@@ -121,6 +121,14 @@ def create_app(
         # 입장 시 과거 대화를 이 클라이언트에게만 먼저 보내 화면을 복원한다(방 멤버 공유).
         for past in await hub.history(room_id):
             await ws.send_json({**past, "history": True})
+        # 현재 방 상태(후보·선호·작업 일정)도 이 클라이언트에 보내 패널·지도 탭을 복원한다.
+        # (상태는 액션이 일어날 때만 브로드캐스트되므로, 새로고침한 클라이언트엔 따로 줘야 한다.)
+        if store is not None:
+            try:
+                st = await store.load(room_id)
+                await ws.send_json({"speaker": "시스템", "type": "state", "state": state_view(st)})
+            except Exception:  # noqa: BLE001 - 상태 복원 실패해도 입장은 막지 않는다
+                pass
         hub.add(room_id, ws)
         room = hub.room(room_id)
 

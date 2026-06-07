@@ -94,13 +94,42 @@ async def test_action_add_candidate_broadcasts_state():
                     }
                 )
             )
-            msg = json.loads(await asyncio.wait_for(ws.recv(), 5))
+            # 입장 시 빈 상태 스냅샷이 먼저 오므로, 후보가 담긴 state까지 읽는다.
+            msg = None
+            for _ in range(5):
+                m = json.loads(await asyncio.wait_for(ws.recv(), 5))
+                if m.get("type") == "state" and m["state"]["candidates"]:
+                    msg = m
+                    break
 
-    assert msg["type"] == "state"
+    assert msg is not None
     assert [c["name"] for c in msg["state"]["candidates"]] == ["흑돼지집"]
     # 상태가 실제로 저장됐는지(재조회)
     saved = await store.load("jeju")
     assert [p.name for p in saved.candidates] == ["흑돼지집"]
+
+
+async def test_state_snapshot_sent_on_join():
+    """입장(새로고침) 직후, 액션 없이도 현재 방 상태(후보 등)가 와야 패널·지도가 복원된다."""
+    from tour_agent.kakao import Place
+
+    store = InMemoryStateStore()
+    st = await store.load("jeju")
+    st.add_candidate(Place("7", "흑돼지집", "음식점", "", "", 126.9, 33.4, "u"))
+    await store.save(st)
+
+    app = create_app(
+        agent_factory=lambda room_id, emit_card: EchoAgent(),
+        store=store,
+        debounce_seconds=0.05,
+    )
+    async with _ServerThread(app) as port:
+        uri = f"ws://127.0.0.1:{port}/ws/jeju"
+        async with websockets.connect(uri) as ws:
+            msg = json.loads(await asyncio.wait_for(ws.recv(), 5))
+
+    assert msg["type"] == "state"
+    assert [c["name"] for c in msg["state"]["candidates"]] == ["흑돼지집"]
 
 
 async def test_itinerary_card_persists_to_working_itinerary():
