@@ -205,6 +205,8 @@ export function Composer({ onSend }) {
   };
 
   const onKey = (e) => {
+    // 한글 IME 조합 중 Enter는 마지막 글자를 중복 전송하므로 무시한다(조합 완료 후 전송).
+    if (e.nativeEvent?.isComposing || e.keyCode === 229) return;
     if (slashOpen && slashMatches.length) {
       if (e.key === "ArrowDown") { e.preventDefault(); setSlashIdx((i) => (i + 1) % slashMatches.length); return; }
       if (e.key === "ArrowUp") { e.preventDefault(); setSlashIdx((i) => (i - 1 + slashMatches.length) % slashMatches.length); return; }
