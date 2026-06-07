@@ -132,6 +132,35 @@ async def test_state_snapshot_sent_on_join():
     assert [c["name"] for c in msg["state"]["candidates"]] == ["흑돼지집"]
 
 
+async def test_join_heals_coordless_candidates():
+    """기존에 좌표 없이 저장된 후보는 입장 시 검색으로 좌표를 채워(id 보존) 지도에 뜨게 한다."""
+    from tour_agent.kakao import Place
+
+    store = InMemoryStateStore()
+    st = await store.load("jeju")
+    st.add_candidate(Place("한라산", "한라산", "", "", "", 0.0, 0.0, ""))  # 좌표 없음
+    await store.save(st)
+
+    async def finder(q):
+        return [Place("kk1", q, "명소", "", "제주", 126.53, 33.36, "u", source="kakao")]
+
+    app = create_app(
+        agent_factory=lambda room_id, emit_card: EchoAgent(),
+        store=store, place_finder=finder, debounce_seconds=0.05,
+    )
+    async with _ServerThread(app) as port:
+        uri = f"ws://127.0.0.1:{port}/ws/jeju"
+        async with websockets.connect(uri) as ws:
+            msg = json.loads(await asyncio.wait_for(ws.recv(), 5))
+
+    assert msg["type"] == "state"
+    c = msg["state"]["candidates"][0]
+    assert c["x"] == 126.53 and c["y"] == 33.36  # 좌표 보강
+    assert c["id"] == "한라산"  # id 보존(담음 배지·선호 유지)
+    # 영속에도 반영(다음 입장부턴 재검색 안 함)
+    assert (await store.load("jeju")).candidates[0].x == 126.53
+
+
 async def test_itinerary_card_persists_to_working_itinerary():
     from tour_agent.api_runner import ApiAgentRunner
     from tour_agent.cards import present_tools

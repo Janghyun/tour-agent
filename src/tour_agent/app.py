@@ -14,7 +14,13 @@ from typing import Awaitable, Callable
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
-from .actions import ActionError, add_candidate_by_link, add_candidate_by_query, apply_action
+from .actions import (
+    ActionError,
+    add_candidate_by_link,
+    add_candidate_by_query,
+    apply_action,
+    heal_coords,
+)
 from .groupchat import AgentRunner, Message, Room
 from .state import itinerary_card_to_places, state_view
 
@@ -126,6 +132,9 @@ def create_app(
         if store is not None:
             try:
                 st = await store.load(room_id)
+                # 예전에 좌표 없이 담긴 후보·숙소가 있으면 검색으로 채워 지도에 뜨게 한다(1회 교정).
+                if place_finder is not None and await heal_coords(st, place_finder):
+                    await store.save(st)
                 await ws.send_json({"speaker": "시스템", "type": "state", "state": state_view(st)})
             except Exception:  # noqa: BLE001 - 상태 복원 실패해도 입장은 막지 않는다
                 pass
@@ -185,7 +194,9 @@ def create_app(
                             await hub.post_message(room_id, {"speaker": "봇", "text": f"‘{place.name}’을(를) 후보에 담았어요."})
                         continue
                     try:
-                        await apply_action(store, room_id, data, emit_state=emit_state)
+                        await apply_action(
+                            store, room_id, data, emit_state=emit_state, place_finder=place_finder
+                        )
                     except (ActionError, KeyError) as exc:
                         await ws.send_json(
                             {"speaker": "시스템", "type": "error", "text": str(exc)}
