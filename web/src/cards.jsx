@@ -28,15 +28,19 @@ export function CatPill({ cat }) {
   return <span className="cat-pill" style={{ background: c.pill, color: c.pinkText }}>{c.label}</span>;
 }
 
-// 장소의 외부 링크 — 봇이 준 place_url, 없으면 이름으로 카카오맵 검색.
+// 장소의 외부 링크 — 봇이 준 place_url, 없으면 출처별 지도 검색으로 폴백(네이버 태그는 네이버로).
 function placeLink(o) {
-  return o.place_url || `https://map.kakao.com/?q=${encodeURIComponent(o.name || "")}`;
+  if (o.place_url) return o.place_url;
+  const q = encodeURIComponent(o.name || "");
+  if (o.source === "naver") return `https://map.naver.com/p/search/${q}`;
+  if (o.source === "google") return `https://www.google.com/maps/search/${q}`;
+  return `https://map.kakao.com/?q=${q}`;
 }
 
 const SRC_LABEL = { kakao: "카카오", naver: "네이버", google: "구글" };
 function SourceBadge({ source }) {
-  if (!source) return null;
-  return <span className="cat-pill" style={{ background: "var(--bg-2)", color: "var(--ink-3)", fontWeight: 600 }}>{SRC_LABEL[source] || source}</span>;
+  const label = source ? (SRC_LABEL[source] || source) : "AI 추천";
+  return <span className="cat-pill" style={{ background: "var(--bg-2)", color: "var(--ink-3)", fontWeight: 600 }}>{label}</span>;
 }
 
 export function PlaceOptionsCard({ card, addedIds, onAdd }) {
