@@ -150,7 +150,7 @@ export function SidePanel(props) {
   const { candidates, itinerary, tab, setTab, width = 320 } = props;
   const counts = { cand: candidates.length, itin: itinerary?.length || 0, map: 0 };
   return (
-    <div className="panel" role="region" aria-label="여행 패널" style={{ width, borderLeft: "1px solid var(--line)", background: "var(--surface-2)", display: "flex", flexDirection: "column", minHeight: 0 }}>
+    <div className="panel" role="region" aria-label="여행 패널" style={{ width, flex: "none", background: "var(--surface-2)", display: "flex", flexDirection: "column", minHeight: 0 }}>
       <div className="panel-tabs pill" role="tablist" style={{ display: "flex", gap: 6, padding: 10, borderBottom: "1px solid var(--line)" }}>
         {TABS.map((t) => {
           const Ico = Icon[t.icon];

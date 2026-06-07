@@ -175,12 +175,48 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
   const [selectedId, setSelectedId] = useState(null);
   const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth <= 760);
   const [panelOpen, setPanelOpen] = useState(false);
+  // 오른쪽 패널 너비(데스크톱) — 드래그로 조절, localStorage에 유지.
+  const [panelW, setPanelW] = useState(() => {
+    if (typeof localStorage === "undefined") return 320;
+    const v = parseInt(localStorage.getItem("panelWidth") || "", 10);
+    return Number.isFinite(v) ? v : 320;
+  });
+  const draggingRef = useRef(false);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const f = () => setIsMobile(window.innerWidth <= 760);
     window.addEventListener("resize", f);
     return () => window.removeEventListener("resize", f);
   }, []);
+  useEffect(() => {
+    try { localStorage.setItem("panelWidth", String(panelW)); } catch { /* 무시 */ }
+  }, [panelW]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onMove = (e) => {
+      if (!draggingRef.current) return;
+      const w = Math.round(window.innerWidth - e.clientX);  // 패널은 오른쪽 — 커서~우측 가장자리 거리
+      const min = 260, max = Math.max(min, Math.min(760, window.innerWidth - 360));  // 채팅 최소 360 보장
+      setPanelW(Math.max(min, Math.min(max, w)));
+    };
+    const onUp = () => {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+  }, []);
+  const startResize = (e) => {
+    e.preventDefault();
+    draggingRef.current = true;
+    if (typeof document !== "undefined") {
+      document.body.style.userSelect = "none";
+      document.body.style.cursor = "col-resize";
+    }
+  };
   const focusMap = (id) => { setSelectedId(id); setTab("map"); if (isMobile) setPanelOpen(true); };
 
   const copyCode = () => {
@@ -255,9 +291,16 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
           />
         )}
 
+        {!isMobile && (
+          <div onMouseDown={startResize} title="드래그해서 패널 너비 조절" role="separator" aria-orientation="vertical"
+               style={{ width: 8, flex: "none", cursor: "col-resize", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--surface-2)", borderLeft: "1px solid var(--line)" }}>
+            <span style={{ width: 3, height: 34, borderRadius: 3, background: "var(--line-2)" }} />
+          </div>
+        )}
+
         {(!isMobile || panelOpen) && (
           <SidePanel
-            width={isMobile ? "100%" : 320}
+            width={isMobile ? "100%" : panelW}
             tab={tab} setTab={setTab}
             candidates={candidates}
             accommodations={state?.accommodations || []}
