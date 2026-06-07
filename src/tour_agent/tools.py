@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from .api_runner import ToolSpec
 from .kakao import KakaoClient
-from .kakao_tools import search_places_tool, travel_time_tool
+from .kakao_tools import format_places, search_places_tool, travel_time_tool
 from .route import optimize_route
 
 SEARCH_SCHEMA = {
@@ -80,13 +80,18 @@ def order_route_toolspec() -> ToolSpec:
     )
 
 
-def build_input_tools(kakao_client: KakaoClient) -> list[ToolSpec]:
-    """검색·동선·order_route 입력 툴 묶음."""
+def build_input_tools(kakao_client: KakaoClient, *, place_finder=None) -> list[ToolSpec]:
+    """검색·동선·order_route 입력 툴 묶음.
+
+    place_finder(종합 검색 등)가 주어지면 봇의 search_places도 그것을 써서 여러 소스를 합친다.
+    """
 
     async def search(args: dict) -> str:
-        return await search_places_tool(
-            kakao_client, args["query"], x=args.get("x"), y=args.get("y")
-        )
+        q = args["query"]
+        if place_finder is not None:
+            places = await place_finder(q, x=args.get("x"), y=args.get("y"))
+            return format_places(places) if places else f"'{q}' 검색 결과가 없습니다."
+        return await search_places_tool(kakao_client, q, x=args.get("x"), y=args.get("y"))
 
     async def travel(args: dict) -> str:
         return await travel_time_tool(

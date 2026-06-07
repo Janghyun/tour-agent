@@ -13,18 +13,8 @@ from __future__ import annotations
 from .kakao import KakaoClient
 
 
-async def search_places_tool(
-    client: KakaoClient,
-    query: str,
-    *,
-    x: float | None = None,
-    y: float | None = None,
-    size: int = 6,
-) -> str:
-    """키워드로 장소를 검색해 에이전트가 읽을 요약을 만든다."""
-    places = await client.keyword_search(query, x=x, y=y, size=size)
-    if not places:
-        return f"'{query}' 검색 결과가 없습니다."
+def format_places(places) -> str:
+    """장소 목록을 에이전트가 읽을 요약 텍스트로(검색 소스 무관 공통 포맷)."""
     lines = []
     for p in places:
         line = f"- {p.name} ({p.category}) / {p.address} / 좌표 {p.x},{p.y}"
@@ -37,6 +27,21 @@ async def search_places_tool(
         lines.append(line)
     lines.append("(영업시간·휴무는 WebSearch로 확인 후 '확인 필요' 톤으로 안내할 것)")
     return "\n".join(lines)
+
+
+async def search_places_tool(
+    client: KakaoClient,
+    query: str,
+    *,
+    x: float | None = None,
+    y: float | None = None,
+    size: int = 6,
+) -> str:
+    """키워드로 장소를 검색해 에이전트가 읽을 요약을 만든다."""
+    places = await client.keyword_search(query, x=x, y=y, size=size)
+    if not places:
+        return f"'{query}' 검색 결과가 없습니다."
+    return format_places(places)
 
 
 async def travel_time_tool(

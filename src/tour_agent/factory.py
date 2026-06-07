@@ -73,14 +73,18 @@ def build_default_runner(
     from .prompts import ORCHESTRATOR_SYSTEM, SIMPLE_SYSTEM
     from .tools import build_input_tools, order_route_toolspec
 
+    # 검색기: place_finder가 주입되면(종합 검색 등) 그것을 쓰고, 없으면 Kakao 단일 검색.
+    # 봇 search_places·/후보·링크·일정 좌표 보강이 모두 이 검색기를 공유한다.
+    _place_finder = place_finder or (
+        (lambda q, *, x=None, y=None, size=6: kakao_client.keyword_search(q, x=x, y=y, size=size))
+        if kakao_client is not None
+        else None
+    )
     input_tools = (
-        build_input_tools(kakao_client)
+        build_input_tools(kakao_client, place_finder=_place_finder)
         if kakao_client is not None
         else [order_route_toolspec()]
     )
-    # 일정 카드의 장소를 실제 검색해 좌표·링크를 보강(봇이 지어낸 좌표 대신 실데이터).
-    # place_finder가 주입되면(종합 검색 등) 그것을 쓰고, 없으면 Kakao 단일 검색.
-    _place_finder = place_finder or ((lambda q: kakao_client.keyword_search(q)) if kakao_client is not None else None)
     # 인접 장소 간 실제 차량 이동시간(compose_itinerary가 사용).
     _route_finder = (lambda o, d: kakao_client.directions(o, d)) if kakao_client is not None else None
     card_tools = (
