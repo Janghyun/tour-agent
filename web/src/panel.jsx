@@ -3,6 +3,7 @@
 import { lazy, Suspense } from "react";
 import { Icon } from "./icons.jsx";
 import { CAT, catKey } from "./constants.js";
+import { placeLink } from "./links.js";
 
 // 실제 지도(OpenStreetMap)는 leaflet(브라우저 전용)이라 lazy 로드 — 지도 탭 열 때만 가져온다(SSR 안전).
 const MapCanvas = lazy(() => import("./mapcanvas.jsx"));
@@ -60,9 +61,16 @@ function CandidateTab({ candidates, preferences, me, onToggleLike, onToggleDisli
           const meDislike = dislikes.includes(me);
           return (
             <div className="cand" key={c.id}>
-              <Thumb cat={cat} size={42} />
+              <a href={placeLink(c)} target="_blank" rel="noreferrer" title="지도에서 자세히 보기" style={{ textDecoration: "none" }}>
+                <Thumb cat={cat} size={42} />
+              </a>
               <div className="ci">
-                <div className="nm">{c.name}</div>
+                <div className="nm">
+                  <a href={placeLink(c)} target="_blank" rel="noreferrer" title="지도에서 자세히 보기"
+                     style={{ color: "inherit", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    {c.name}<Icon.search s={12} style={{ color: "var(--ink-4)", verticalAlign: "-1px" }} />
+                  </a>
+                </div>
                 <div className="meta"><CatPill cat={cat} />{c.category ? <span>{c.category}</span> : null}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
                   <button className={"react-btn like" + (meLike ? " on" : "")} onClick={() => onToggleLike(c.id)}>

@@ -154,7 +154,10 @@ def state_view(state: RoomState) -> dict:
         "dates": state.dates,
         "owner": state.owner,
         "candidates": [
-            {"id": p.id, "name": p.name, "category": p.category, "x": p.x, "y": p.y}
+            {
+                "id": p.id, "name": p.name, "category": p.category, "x": p.x, "y": p.y,
+                "place_url": p.place_url, "source": p.source, "address": p.address,
+            }
             for p in state.candidates
         ],
         "accommodations": [

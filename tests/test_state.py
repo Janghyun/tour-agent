@@ -4,6 +4,7 @@ from tour_agent.state import (
     Preference,
     RoomState,
     room_snapshot,
+    state_view,
 )
 
 
@@ -25,6 +26,17 @@ def test_remove_candidate():
     s.add_candidate(P("B"))
     s.remove_candidate("A")
     assert [p.name for p in s.candidates] == ["B"]
+
+
+def test_state_view_candidate_includes_link_and_source():
+    """프론트에서 후보 클릭 시 출처에 맞는 지도로 이동하려면 view에 place_url·source가 있어야 한다."""
+    s = RoomState(room_id="r")
+    s.add_candidate(
+        Place("1", "한라산", "명소", "", "제주", 126.53, 33.36, "http://place.map.kakao.com/1", source="kakao")
+    )
+    c = state_view(s)["candidates"][0]
+    assert c["place_url"] == "http://place.map.kakao.com/1"
+    assert c["source"] == "kakao"
 
 
 def test_confirm_snapshots_working_itinerary():
