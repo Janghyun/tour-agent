@@ -75,6 +75,46 @@ async def test_build_substitutes_found_alternative_when_primary_missing():
     assert by["돈사돈"].get("x") and by["돈사돈"].get("y")  # 검색되는 대안으로 대체(좌표 포함)
 
 
+async def test_build_meal_falls_back_to_category_search_near_region():
+    """식사 칸이 이름·대안 모두 검색 0건이면 카테고리로 권역 검색해 실제 맛집으로 채운다."""
+    async def finder(q, *, x=None, y=None, size=6):
+        if q in _DB:
+            return [_DB[q]]
+        if q == "흑돼지" and x is not None:  # 카테고리 + 권역 bias 검색만 결과 있음
+            return [Place("p", "성산 흑돼지맛집", "흑돼지", "", "", 126.93, 33.45, "uX", source="kakao")]
+        return []
+
+    plan = {"days": [{
+        "accommodation": "애월 숙소",
+        "items": [
+            {"name": "성산일출봉"}, {"name": "우도"},
+            {"name": "없는식당", "category": "흑돼지", "meal": "dinner", "alternatives": ["또없음"]},
+        ],
+    }]}
+    card = await build_itinerary(plan, place_finder=finder)
+    by = {i["name"]: i for i in card["days"][0]["items"]}
+    assert "없는식당" not in by  # 환각 이름은 빠지고
+    assert "성산 흑돼지맛집" in by and by["성산 흑돼지맛집"].get("x")  # 권역 실제 맛집으로 대체
+
+
+async def test_build_non_meal_unlocated_not_category_replaced():
+    """식사가 아닌 항목은 카테고리 대체를 하지 않는다(엉뚱한 곳으로 바뀌면 안 됨)."""
+    async def finder(q, *, x=None, y=None, size=6):
+        if q in _DB:
+            return [_DB[q]]
+        if x is not None:  # 어떤 카테고리든 권역 검색하면 결과가 있다고 가정
+            return [Place("z", "권역아무거나", "기타", "", "", 126.9, 33.46, "uz")]
+        return []
+
+    plan = {"days": [{
+        "accommodation": "애월 숙소",
+        "items": [{"name": "성산일출봉"}, {"name": "우도"}, {"name": "없는명소", "category": "명소"}],
+    }]}
+    card = await build_itinerary(plan, place_finder=finder)
+    names = [i["name"] for i in card["days"][0]["items"]]
+    assert "없는명소" in names and "권역아무거나" not in names  # 식사가 아니므로 그대로 미확인
+
+
 async def test_build_keeps_unlocated_when_no_alternative_found():
     """주 식당도 대안도 검색 안 되면 이름만 '위치 확인 필요'로 남긴다(좌표 없음)."""
     plan = {"days": [{

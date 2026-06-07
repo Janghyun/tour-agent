@@ -94,6 +94,24 @@ async def build_itinerary(plan, *, place_finder, route_finder=None, start_hour: 
                 if np_ and np_.x and np_.y and (abs(np_.x - cx) + abs(np_.y - cy) < abs(p.x - cx) + abs(p.y - cy)):
                     firsts[k] = np_
 
+        # 식사 칸 보강: 이름·대안 모두 권역에서 못 찾았으면 카테고리(맛집 키워드)로 권역을
+        # 검색해 실제 가게로 채운다(봇이 지어낸 이름 대신 진짜 맛집). 식사가 아닌 항목은 건드리지 않는다.
+        if coords:
+            for k in range(len(items)):
+                if firsts[k] and near(firsts[k]):
+                    continue
+                if not items[k].get("meal"):
+                    continue
+                kw = items[k].get("category") or "맛집"
+                try:
+                    r3 = await place_finder(kw, x=cx, y=cy)
+                except Exception:  # noqa: BLE001
+                    r3 = None
+                hit = r3[0] if r3 else None
+                if hit and near(hit):
+                    firsts[k] = hit
+                    items[k] = {**items[k], "name": hit.name}
+
         located = [(it, p) for it, p in zip(items, firsts) if near(p)]
         unlocated = [it for it, p in zip(items, firsts) if not near(p)]
 
