@@ -58,6 +58,7 @@ class NaverClient:
                 x=px,
                 y=py,
                 place_url=it.get("link", ""),
+                source="naver",
             ))
         return out
 

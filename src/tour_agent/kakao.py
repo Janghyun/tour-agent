@@ -34,6 +34,7 @@ class Place:
     y: float
     place_url: str
     distance_m: int | None = None
+    source: str = ""  # 검색 출처(kakao/naver/google) — 종합 검색에서 표기
 
 
 @dataclass(frozen=True)
@@ -148,4 +149,5 @@ class KakaoClient:
             y=float(d["y"]),
             place_url=d.get("place_url", ""),
             distance_m=int(dist) if dist not in (None, "") else None,
+            source="kakao",
         )

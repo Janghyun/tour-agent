@@ -57,6 +57,7 @@ async def test_keyword_search_parses_places_and_builds_request():
             y=33.45,
             place_url="http://place.map.kakao.com/1",
             distance_m=120,
+            source="kakao",
         )
     ]
 

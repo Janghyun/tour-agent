@@ -53,6 +53,7 @@ class GooglePlacesClient:
                 x=float(loc.get("lng", 0.0)),
                 y=float(loc.get("lat", 0.0)),
                 place_url=(f"https://www.google.com/maps/place/?q=place_id:{pid}" if pid else ""),
+                source="google",
             ))
         return [p for p in out if p.name]
 

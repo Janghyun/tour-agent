@@ -24,6 +24,8 @@ def format_places(places) -> str:
             line += f" / {p.phone}"
         if p.place_url:
             line += f" / 링크 {p.place_url}"
+        if getattr(p, "source", ""):
+            line += f" / 출처:{p.source}"
         lines.append(line)
     lines.append("(영업시간·휴무는 WebSearch로 확인 후 '확인 필요' 톤으로 안내할 것)")
     return "\n".join(lines)

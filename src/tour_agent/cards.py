@@ -31,6 +31,7 @@ PLACE_OPTIONS_SCHEMA = {
                     "distance_m": {"type": "number"},
                     "phone": {"type": "string"},
                     "place_url": {"type": "string"},
+                    "source": {"type": "string"},  # 출처(kakao/naver/google)
                     "note": {"type": "string"},
                 },
                 "required": ["name"],

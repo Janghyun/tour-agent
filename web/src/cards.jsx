@@ -33,6 +33,12 @@ function placeLink(o) {
   return o.place_url || `https://map.kakao.com/?q=${encodeURIComponent(o.name || "")}`;
 }
 
+const SRC_LABEL = { kakao: "카카오", naver: "네이버", google: "구글" };
+function SourceBadge({ source }) {
+  if (!source) return null;
+  return <span className="cat-pill" style={{ background: "var(--bg-2)", color: "var(--ink-3)", fontWeight: 600 }}>{SRC_LABEL[source] || source}</span>;
+}
+
 export function PlaceOptionsCard({ card, addedIds, onAdd }) {
   const opts = card.options || [];
   return (
@@ -57,7 +63,7 @@ export function PlaceOptionsCard({ card, addedIds, onAdd }) {
                  style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, textDecoration: "none", color: "inherit" }}>
                 <Thumb cat={k} />
                 <div className="place-info">
-                  <div className="nm">{o.name} <CatPill cat={k} /> <Icon.search s={12} style={{ color: "var(--ink-4)", verticalAlign: "-1px" }} /></div>
+                  <div className="nm">{o.name} <CatPill cat={k} /> <SourceBadge source={o.source} /> <Icon.search s={12} style={{ color: "var(--ink-4)", verticalAlign: "-1px" }} /></div>
                   <div className="meta">
                     <span>{o.category || CAT[k].label}</span>
                     {o.address && <><span className="dot"></span><span>{o.address}</span></>}
