@@ -18,4 +18,5 @@ COPY src/ ./src/
 
 EXPOSE 8080
 # 방별 인메모리 세션이 있는 단일 상시 프로세스(스케일 시 room 단위 sticky 필요).
-CMD ["uvicorn", "tour_agent.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# PORT는 환경변수로(Fly=8080 고정, Railway 등은 동적 주입). 둘 다 호환되게 ${PORT:-8080}.
+CMD ["sh", "-c", "uvicorn tour_agent.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
