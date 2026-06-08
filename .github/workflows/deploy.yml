@@ -1,17 +1,18 @@
-name: Deploy
+name: Deploy backend (Fly.io)
 
-# main 푸시 또는 수동 실행. 각 잡은 해당 시크릿이 있을 때만 동작(없으면 건너뜀).
-# 필요한 시크릿/변수:
-#   secrets.FLY_API_TOKEN              — Fly 백엔드 배포
-#   secrets.CLOUDFLARE_API_TOKEN       — Cloudflare Pages 배포
-#   secrets.CLOUDFLARE_ACCOUNT_ID      — Cloudflare 계정 ID
-#   vars.CF_PAGES_PROJECT              — Pages 프로젝트명(기본 tour-agent-web)
-#   vars.VITE_WS_BASE                  — 프론트가 붙을 백엔드 WS 주소(예: wss://tour-agent.fly.dev)
-# 런타임 키(ANTHROPIC_API_KEY·KAKAO_REST_API_KEY)는 `fly secrets set`으로 별도 주입(레포·CI에 넣지 않음).
+# main 푸시(백엔드 관련 파일) 또는 수동 실행. FLY_API_TOKEN 시크릿이 있을 때만 동작.
+# 프론트(GitHub Pages)는 pages.yml 워크플로에서 별도로 배포한다.
+# 필요한 것:
+#   secrets.FLY_API_TOKEN   — Fly 배포 토큰 (`fly tokens create deploy` 로 발급)
+# 런타임 키는 레포/CI가 아니라 Fly 시크릿으로 주입:
+#   fly secrets set ANTHROPIC_API_KEY=... KAKAO_REST_API_KEY=... \
+#                   NAVER_CLIENT_ID=... NAVER_CLIENT_SECRET=... \
+#                   SUPABASE_URL=... SUPABASE_KEY=...
 
 on:
   push:
     branches: [main]
+    paths: ["src/**", "requirements.txt", "Dockerfile", "fly.toml", ".github/workflows/deploy.yml"]
   workflow_dispatch:
 
 jobs:
@@ -37,43 +38,3 @@ jobs:
       - name: flyctl deploy
         if: steps.guard.outputs.ok == 'true'
         run: flyctl deploy --remote-only
-
-  deploy-frontend:
-    name: 프론트 배포 (Cloudflare Pages)
-    runs-on: ubuntu-latest
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-    steps:
-      - name: 시크릿 확인
-        id: guard
-        run: |
-          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            echo "Cloudflare 시크릿 미설정 — 프론트 배포 건너뜀."
-            echo "ok=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "ok=true" >> "$GITHUB_OUTPUT"
-          fi
-      - uses: actions/checkout@v4
-        if: steps.guard.outputs.ok == 'true'
-      - uses: actions/setup-node@v4
-        if: steps.guard.outputs.ok == 'true'
-        with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - name: 프론트 빌드
-        if: steps.guard.outputs.ok == 'true'
-        working-directory: web
-        env:
-          VITE_WS_BASE: ${{ vars.VITE_WS_BASE }}
-        run: |
-          npm ci || npm install
-          npm run build
-      - name: Pages 배포
-        if: steps.guard.outputs.ok == 'true'
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy web/dist --project-name=${{ vars.CF_PAGES_PROJECT || 'tour-agent-web' }}
