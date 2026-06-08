@@ -116,6 +116,9 @@ COMPOSE_ITINERARY_SCHEMA = {
                     # 도착일(여행 첫날, 공항 등 도착지에서 시작해 숙소 체크인으로 끝나는 날)이면 true.
                     # 특정 날짜만 요청받으면(예: '3일차') 그 날이 도착일이 아닌 한 false로 둔다(숙소에서 출발).
                     "arrival": {"type": "boolean"},
+                    # 출발일(여행 마지막 날, 체크아웃 후 떠나는 날)이면 true. 그 날은 숙소로 복귀하지 않는다.
+                    # 중간 날은 false(또는 생략) — 그날 밤 같은 숙소로 돌아오므로 '숙소 복귀'가 붙는다.
+                    "departure": {"type": "boolean"},
                     "items": {
                         "type": "array",
                         "items": {

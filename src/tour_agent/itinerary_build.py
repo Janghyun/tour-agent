@@ -74,6 +74,17 @@ async def build_itinerary(plan, *, place_finder, route_finder=None, start_hour: 
             else:
                 arrival = di == 0
         is_first = bool(arrival)
+        # '출발일'(마지막 날) 판정 — 마지막 날은 체크아웃 후 떠나므로 그날 밤 숙소로 복귀하지 않는다.
+        # 봇이 departure를 주면 그대로. 없으면: 여러 날 계획은 마지막 인덱스가 출발일,
+        # 단일 날 요청은 도착지(공항)로 끝날 때만 출발일로 본다(아니면 숙소로 돌아오는 보통 날).
+        departure = day.get("departure")
+        if departure is None:
+            if total_days <= 1:
+                last_nm = raw[-1]["name"] if raw else ""
+                departure = ("공항" in last_nm) or ("airport" in last_nm.lower())
+            else:
+                departure = di == total_days - 1
+        is_last = bool(departure)
 
         # 각 항목을 검색(없으면 대안으로 대체). items는 표시이름·남은 대안이 반영된 정규화 목록.
         resolved = list(await asyncio.gather(*(_resolve_item(place_finder, it) for it in raw))) if raw else []
@@ -193,6 +204,27 @@ async def build_itinerary(plan, *, place_finder, route_finder=None, start_hour: 
                     pass
             items_out.append({
                 "name": f"{acc_name} 체크인" if acc_name else "숙소 체크인",
+                "time": _hhmm(t),
+                "category": "숙소",
+                "x": acc_p.x, "y": acc_p.y, "place_url": acc_p.place_url,
+                "travel_from_prev": travel,
+                "alternatives": [],
+            })
+
+        # 중간 날(숙소에서 출발해 그날 밤 같은 숙소로 돌아오는 날)은 동선 마지막에 '{숙소} 복귀'를 붙인다.
+        # 마지막 날(출발일)은 체크아웃 후 떠나므로 복귀하지 않는다.
+        if lodge_start and not is_last and located and acc_p is not None and near(acc_p):
+            travel = ""
+            if route_finder is not None and prev is not None:
+                try:
+                    r = await route_finder(prev, (acc_p.x, acc_p.y))
+                    mins = round(r.duration_s / 60)
+                    travel = f"차 약 {mins}분"
+                    t += mins
+                except Exception:  # noqa: BLE001
+                    pass
+            items_out.append({
+                "name": f"{acc_name} 복귀" if acc_name else "숙소 복귀",
                 "time": _hhmm(t),
                 "category": "숙소",
                 "x": acc_p.x, "y": acc_p.y, "place_url": acc_p.place_url,

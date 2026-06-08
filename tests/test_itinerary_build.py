@@ -187,6 +187,41 @@ async def test_explicit_arrival_flag_overrides_heuristic():
     assert card["days"][0]["items"][0]["name"] == "애월 숙소 출발"
 
 
+async def test_middle_day_returns_to_lodging():
+    """여러 날 중 중간 날(첫날도 마지막 날도 아님)은 동선 마지막에 숙소로 복귀한다."""
+    plan = {"days": [
+        {"accommodation": "애월 숙소", "items": [{"name": "제주국제공항"}, {"name": "성산일출봉"}]},   # day1 도착
+        {"accommodation": "애월 숙소", "items": [{"name": "우도"}, {"name": "돈사돈", "meal": "dinner"}]},  # day2 중간
+        {"accommodation": "애월 숙소", "items": [{"name": "성산일출봉"}]},                              # day3 마지막
+    ]}
+    card = await build_itinerary(plan, place_finder=_finder)
+    d2 = card["days"][1]
+    assert d2["items"][0]["name"] == "애월 숙소 출발"
+    assert d2["items"][-1]["name"] == "애월 숙소 복귀"  # 중간 날은 숙소 복귀로 끝
+    # 마지막 날(day3)은 복귀하지 않음
+    assert not any(i["name"].endswith("복귀") for i in card["days"][2]["items"])
+
+
+async def test_single_middle_day_returns_to_lodging():
+    """'2일차만'처럼 단일 중간 날(공항 없음)은 숙소 출발 + 숙소 복귀."""
+    plan = {"days": [
+        {"accommodation": "애월 숙소", "items": [{"name": "성산일출봉"}, {"name": "우도"}, {"name": "돈사돈", "meal": "dinner"}]},
+    ]}
+    card = await build_itinerary(plan, place_finder=_finder)
+    items = card["days"][0]["items"]
+    assert items[0]["name"] == "애월 숙소 출발"
+    assert items[-1]["name"] == "애월 숙소 복귀"
+
+
+async def test_single_departure_day_with_airport_no_return():
+    """단일 날이라도 도착지(공항)로 끝나면 출발일로 보고 숙소 복귀를 넣지 않는다."""
+    plan = {"days": [
+        {"accommodation": "애월 숙소", "items": [{"name": "성산일출봉"}, {"name": "제주국제공항"}]},
+    ]}
+    card = await build_itinerary(plan, place_finder=_finder)
+    assert not any(i["name"].endswith("복귀") for i in card["days"][0]["items"])
+
+
 async def test_build_rebiases_region_outlier():
     # '흩어진곳' 첫 결과는 권역에서 멀고(서쪽), 중심 bias를 주면 동부 결과로 바뀐다 → 교정.
     async def finder(q, *, x=None, y=None, size=6):
