@@ -12,6 +12,7 @@ from typing import Protocol
 class MessageStore(Protocol):
     async def append(self, room_id: str, message: dict) -> None: ...
     async def recent(self, room_id: str, limit: int = 100) -> list[dict]: ...
+    async def delete(self, room_id: str, mid: str) -> None: ...
 
 
 class InMemoryMessageStore:
@@ -25,3 +26,9 @@ class InMemoryMessageStore:
 
     async def recent(self, room_id: str, limit: int = 100) -> list[dict]:
         return list(self._rooms.get(room_id, []))[-limit:]
+
+    async def delete(self, room_id: str, mid: str) -> None:
+        """메시지 id(mid)로 한 메시지를 삭제한다(없으면 무시)."""
+        msgs = self._rooms.get(room_id)
+        if msgs:
+            self._rooms[room_id] = [m for m in msgs if m.get("mid") != mid]

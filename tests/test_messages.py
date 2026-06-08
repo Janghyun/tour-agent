@@ -21,6 +21,22 @@ async def test_recent_limit_keeps_latest():
     assert [m["text"] for m in out] == ["7", "8", "9"]
 
 
+async def test_delete_removes_message_by_mid():
+    ms = InMemoryMessageStore()
+    await ms.append("r", {"mid": "a", "speaker": "봇", "text": "1"})
+    await ms.append("r", {"mid": "b", "speaker": "봇", "text": "2"})
+    await ms.append("r", {"mid": "c", "speaker": "봇", "text": "3"})
+    await ms.delete("r", "b")
+    assert [m["text"] for m in await ms.recent("r")] == ["1", "3"]
+
+
+async def test_delete_unknown_mid_is_noop():
+    ms = InMemoryMessageStore()
+    await ms.append("r", {"mid": "a", "text": "1"})
+    await ms.delete("r", "zzz")
+    assert [m["text"] for m in await ms.recent("r")] == ["1"]
+
+
 async def test_rooms_are_isolated():
     ms = InMemoryMessageStore()
     await ms.append("a", {"text": "a1"})

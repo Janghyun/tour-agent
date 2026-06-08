@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import asyncio
+import secrets
 from typing import Awaitable, Callable
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -95,7 +96,10 @@ class RoomHub:
 
     async def post_message(self, room_id: str, message: dict) -> None:
         """대화 메시지(사람·봇·카드)를 방에 브로드캐스트하고 영속 저장한다(입장 시 복원용).
-        상태(state)·에러 같은 일시 메시지는 이 메서드를 쓰지 않는다."""
+        상태(state)·에러 같은 일시 메시지는 이 메서드를 쓰지 않는다.
+        삭제·중복제거를 위해 메시지마다 안정적인 id(mid)를 부여한다."""
+        if "mid" not in message:
+            message = {**message, "mid": secrets.token_urlsafe(8)}
         await self.broadcast_json(room_id, message)
         if self._message_store is not None:
             try:
@@ -123,7 +127,7 @@ def create_app(
     )
     app.state.hub = hub
     # 방장 전용 동작 — 게이팅(admin_key) 모드에서 방장이 아닌 입장자는 막는다.
-    OWNER_ONLY = {"set_meta", "set_accommodation", "confirm_itinerary"}
+    OWNER_ONLY = {"set_meta", "set_accommodation", "confirm_itinerary", "delete_message"}
 
     @app.websocket("/ws/{room_id}")
     async def ws_endpoint(ws: WebSocket, room_id: str) -> None:
@@ -207,6 +211,17 @@ def create_app(
                             except Exception:  # noqa: BLE001
                                 items = []
                         await ws.send_json({"type": "exports", "items": list(reversed(items))})
+                        continue
+                    # 봇 답변·카드(또는 대화) 삭제 — 영속에서 지우고 모두에게 제거를 알린다.
+                    if data.get("action") == "delete_message":
+                        mid = data.get("mid")
+                        if mid and message_store is not None:
+                            try:
+                                await message_store.delete(room_id, mid)
+                            except Exception:  # noqa: BLE001
+                                pass
+                        if mid:
+                            await hub.broadcast_json(room_id, {"type": "delete", "mid": mid})
                         continue
                     # 상태 변경 액션(후보 추가·확정·선호 등)
                     if store is None:

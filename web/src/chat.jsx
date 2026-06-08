@@ -55,6 +55,12 @@ function Message({ m, ctx }) {
             <span className="name">{sys ? "시스템" : "여행봇"}</span>
             {!sys && <span className="bot-tag">BOT</span>}
             {m.took != null && <span style={{ fontSize: 11, color: "var(--ink-4)", marginLeft: 6 }}>{m.took}초 걸림</span>}
+            {ctx.canDelete && ctx.onDelete && m.mid && (
+              <button onClick={() => ctx.onDelete(m.mid)} title="이 답변/카드 삭제"
+                      style={{ marginLeft: "auto", border: "none", background: "transparent", cursor: "pointer", color: "var(--ink-4)", padding: 2, display: "inline-flex" }}>
+                <Icon.trash s={14} />
+              </button>
+            )}
           </div>
           {m.card ? <CardBody card={m.card} ctx={ctx} /> : (
             sys

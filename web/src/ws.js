@@ -11,6 +11,7 @@ export function connectRoom(url, handlers = {}) {
     }
     if (msg?.type === "admitted") handlers.onAdmitted?.(msg);
     else if (msg?.type === "denied") handlers.onDenied?.(msg);
+    else if (msg?.type === "delete") handlers.onDelete?.(msg);
     else if (msg?.type === "card") handlers.onCard?.(msg.card, msg);
     else if (msg?.type === "state") handlers.onState?.(msg.state, msg);
     else if (msg?.type === "exports") handlers.onExports?.(msg.items || []);

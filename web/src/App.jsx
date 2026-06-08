@@ -180,19 +180,20 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
             const took = startRef.current ? Math.round((Date.now() - startRef.current) / 1000) : null;
             startRef.current = 0;
             setPending(false);
-            push({ author: m.speaker, text: m.text, took });
+            push({ author: m.speaker, text: m.text, took, mid: m.mid });
           } else {
-            push({ author: m.speaker, text: m.text });
+            push({ author: m.speaker, text: m.text, mid: m.mid });
           }
         },
-        onCard: (card) => {
+        onCard: (card, msg) => {
           const took = startRef.current ? Math.round((Date.now() - startRef.current) / 1000) : null;
           startRef.current = 0;
           setPending(false);
-          push({ card, took });
+          push({ card, took, mid: msg?.mid });
         },
         onState: (s) => setState(s),
         onExports: (items) => setHistoryItems(items),
+        onDelete: (m) => setMsgs((xs) => xs.filter((x) => x.mid !== m.mid)),  // 삭제 브로드캐스트 반영
         onError: (t) => { startRef.current = 0; setPending(false); push({ author: "시스템", text: "⚠ " + t }); },
       });
       connRef.current = conn;
@@ -209,6 +210,7 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
     });
   const removeCandidate = (id) => connRef.current?.sendAction({ action: "remove_candidate", place_id: id });
   const confirm = () => connRef.current?.sendAction({ action: "confirm_itinerary", by: me });
+  const deleteMessage = (mid) => { if (mid) connRef.current?.sendAction({ action: "delete_message", mid }); };
   const toggleLike = (id) => connRef.current?.sendAction({ action: "set_preference", traveler: me, target: id, sentiment: "like" });
   const toggleDislike = (id) => connRef.current?.sendAction({ action: "set_preference", traveler: me, target: id, sentiment: "dislike" });
 
@@ -405,7 +407,7 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
             pending={pending}
             elapsed={elapsed}
             pendingText={pendingText}
-            ctx={{ me, addedIds, onAdd: addCandidate, onAddLink: addLink, onExport: exportItin, confirmed: state?.confirmed }}
+            ctx={{ me, addedIds, onAdd: addCandidate, onAddLink: addLink, onExport: exportItin, confirmed: state?.confirmed, onDelete: deleteMessage, canDelete: isHost }}
             composer={<Composer onSend={handleSend} />}
           />
         )}

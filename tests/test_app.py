@@ -122,6 +122,51 @@ async def test_gated_guest_cannot_confirm_itinerary():
                 assert "방장" in err["text"]
 
 
+async def test_delete_message_removes_and_broadcasts():
+    from tour_agent.messages import InMemoryMessageStore
+
+    ms = InMemoryMessageStore()
+    app = create_app(
+        agent_factory=lambda room_id, emit_card: EchoAgent(),
+        store=InMemoryStateStore(), message_store=ms, debounce_seconds=0.05,
+    )
+    async with _ServerThread(app) as port:
+        uri = f"ws://127.0.0.1:{port}/ws/jeju"
+        async with websockets.connect(uri) as ws:
+            await ws.send(json.dumps({"speaker": "민수", "text": "지울 메시지"}))
+            mid = None
+            for _ in range(6):
+                m = json.loads(await asyncio.wait_for(ws.recv(), 5))
+                if m.get("text") == "지울 메시지" and m.get("mid"):
+                    mid = m["mid"]; break
+            assert mid  # 메시지에 id가 붙어 브로드캐스트된다
+            await ws.send(json.dumps({"action": "delete_message", "mid": mid}))
+            d = await _recv_until(ws, "delete")
+            assert d["mid"] == mid  # 삭제가 모두에게 브로드캐스트된다
+    assert all(m.get("mid") != mid for m in await ms.recent("jeju"))  # 영속에서도 제거
+
+
+async def test_delete_message_rejected_for_guest_when_gated():
+    from tour_agent.messages import InMemoryMessageStore
+
+    ms = InMemoryMessageStore()
+    app = create_app(
+        agent_factory=lambda room_id, emit_card: EchoAgent(),
+        store=InMemoryStateStore(), message_store=ms, admin_key="SECRET", debounce_seconds=0.05,
+    )
+    async with _ServerThread(app) as port:
+        uri = f"ws://127.0.0.1:{port}/ws/jeju"
+        async with websockets.connect(uri) as owner:
+            await owner.send(json.dumps({"join": {"name": "민수", "adminKey": "SECRET", "ownerToken": "t1"}}))
+            adm = await _recv_until(owner, "admitted")
+            async with websockets.connect(uri) as guest:
+                await guest.send(json.dumps({"join": {"name": "영희", "inviteCode": adm["invite"]}}))
+                await _recv_until(guest, "admitted")
+                await guest.send(json.dumps({"action": "delete_message", "mid": "x"}))
+                err = await _recv_until(guest, "error")
+                assert "방장" in err["text"]  # 게이팅 모드에선 방장만 삭제 가능
+
+
 async def test_two_clients_bot_responds_only_on_explicit_call_and_broadcasts_to_all():
     app = create_app(
         agent_factory=lambda room_id, emit_card: EchoAgent(), debounce_seconds=0.05
@@ -396,7 +441,8 @@ async def test_human_chat_broadcasts_to_room():
             ma = json.loads(await asyncio.wait_for(a.recv(), 5))
             mb = json.loads(await asyncio.wait_for(b.recv(), 5))
 
-    # 사람 메시지가 방의 모두(보낸 사람 포함)에게 공유된다.
-    assert ma == {"speaker": "민수", "text": "우도 갈까?"}
+    # 사람 메시지가 방의 모두(보낸 사람 포함)에게 공유된다(메시지엔 삭제용 id가 붙는다).
+    assert ma["speaker"] == "민수" and ma["text"] == "우도 갈까?"
+    assert ma.get("mid")  # 삭제·동기화를 위한 메시지 id
     assert mb == ma
 

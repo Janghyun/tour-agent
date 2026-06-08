@@ -27,6 +27,22 @@ async def test_message_append_posts_row():
     assert json.loads(seen["body"]) == {"room_id": "r", "data": {"speaker": "민수", "text": "hi"}}
 
 
+async def test_message_delete_issues_delete_filtered_by_mid():
+    seen = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen["method"] = req.method
+        seen["url"] = str(req.url)
+        return httpx.Response(204)
+
+    ms = SupabaseMessageStore("https://x.supabase.co", "KEY", client=_client(handler))
+    await ms.delete("r", "abc123")
+
+    assert seen["method"] == "DELETE" and "room_message" in seen["url"]
+    assert "room_id=eq.r" in seen["url"]
+    assert "eq.abc123" in seen["url"]  # data->>mid=eq.abc123 (인코딩 포함)
+
+
 async def test_message_recent_returns_chronological():
     def handler(req: httpx.Request) -> httpx.Response:
         # PostgREST는 order=id.desc로 최신순 반환 → 스토어가 시간순으로 뒤집어야 한다.

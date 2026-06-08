@@ -133,3 +133,14 @@ class SupabaseMessageStore:
             raise SupabaseError(f"메시지 조회 실패({resp.status_code}): {resp.text[:200]}")
         rows = resp.json()
         return [r["data"] for r in reversed(rows)]
+
+    async def delete(self, room_id: str, mid: str) -> None:
+        """data->>mid 가 일치하는 메시지를 삭제한다(메시지 id 기반)."""
+        resp = await self._request(
+            "DELETE",
+            self._table,
+            params={"room_id": f"eq.{room_id}", "data->>mid": f"eq.{mid}"},
+            headers=self._headers({"Prefer": "return=minimal"}),
+        )
+        if resp.status_code >= 400:
+            raise SupabaseError(f"메시지 삭제 실패({resp.status_code}): {resp.text[:200]}")
