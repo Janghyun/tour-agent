@@ -105,6 +105,8 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyItems, setHistoryItems] = useState([]); // 내보낸 기록(백엔드, 방 멤버 공유)
   const [denied, setDenied] = useState(null); // 입장 거부 사유(게이팅)
+  const [adminInput, setAdminInput] = useState(""); // 거부 화면에서 관리자 키 재입력
+  const [reconnectN, setReconnectN] = useState(0); // 재연결 트리거(거부 후 재시도)
   const [invite, setInvite] = useState(() => roomCred(room).invite || ""); // 초대 코드(공유용)
   const [inviteCopied, setInviteCopied] = useState(false);
   const deniedRef = useRef(false); // 거부되면 재연결 중단
@@ -147,7 +149,8 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
           const join = { name: me };
           if (cred.ownerToken) join.ownerToken = cred.ownerToken;
           if (cred.invite) join.inviteCode = cred.invite;
-          if (role === "host") join.adminKey = loadAdminKey();
+          const _ak = loadAdminKey();  // 관리자 키가 있으면 항상 보냄(미claim 방 claim·재입장용)
+          if (_ak) join.adminKey = _ak;
           conn.sendAction({ join });
           // 방을 만든 사람(host)만 방장·메타를 등록한다(참여자는 건드리지 않음).
           if (role === "host" && meta) {
@@ -197,7 +200,7 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
 
     connect();
     return () => { closed = true; if (retry) clearTimeout(retry); connRef.current?.close(); };
-  }, [room]);
+  }, [room, reconnectN]);
 
   const addCandidate = (o) =>
     connRef.current?.sendAction({
@@ -292,18 +295,35 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
     setTimeout(() => setInviteCopied(false), 1500);
   };
 
+  // 거부 화면에서 관리자 키를 넣고 그 자리에서 재시도(내가 만든 방 claim·재입장).
+  const retryWithAdminKey = () => {
+    const k = adminInput.trim();
+    if (k) saveAdminKey(k);
+    setAdminInput("");
+    deniedRef.current = false;
+    setDenied(null);
+    setReconnectN((n) => n + 1);  // connect effect 재실행 → 저장된 키로 재연결
+  };
+
   // 게이팅 모드에서 입장 거부되면 방 UI 대신 안내 화면.
   if (denied) {
     return (
       <div style={{ ...S.app, alignItems: "center", justifyContent: "center", textAlign: "center", padding: 24 }}>
-        <div style={{ maxWidth: 380 }}>
+        <div style={{ maxWidth: 380, width: "100%" }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
           <h2 style={{ margin: "0 0 8px" }}>입장할 수 없어요</h2>
-          <p style={{ color: "var(--ink-2)", marginBottom: 18 }}>{denied}</p>
-          <p style={{ color: "var(--ink-3)", fontSize: 13, marginBottom: 18 }}>
-            이 방은 초대받은 사람만 들어올 수 있어요. 방장에게 <b>초대 링크</b>를 받아 다시 시도해 주세요.
+          <p style={{ color: "var(--ink-2)", marginBottom: 14 }}>{denied}</p>
+          <p style={{ color: "var(--ink-3)", fontSize: 13, marginBottom: 16 }}>
+            내가 만든 방이면 <b>관리자 키</b>로 다시 시도하세요. 초대받은 경우엔 <b>초대 링크</b>로 들어오세요.
           </p>
-          <button style={{ ...S.btn, justifyContent: "center", padding: "10px 18px" }} onClick={onLobby}>로비로 돌아가기</button>
+          <input type="password" value={adminInput} onChange={(e) => setAdminInput(e.target.value)}
+                 onKeyDown={(e) => { if (e.key === "Enter") retryWithAdminKey(); }}
+                 placeholder="관리자 키" autoComplete="off"
+                 style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: "var(--r-xs)", border: "1px solid var(--line-2)", marginBottom: 10, font: "inherit" }} />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={{ ...S.btn, flex: 1, justifyContent: "center", padding: "10px 0" }} onClick={retryWithAdminKey}>관리자 키로 다시 시도</button>
+            <button style={{ ...S.ghostBtn, justifyContent: "center", padding: "10px 14px" }} onClick={onLobby}>로비로</button>
+          </div>
         </div>
       </div>
     );
