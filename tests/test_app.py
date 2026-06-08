@@ -44,6 +44,84 @@ class _ServerThread:
         self._thread.join(timeout=5)
 
 
+async def _recv_until(ws, type_, tries=6):
+    for _ in range(tries):
+        m = json.loads(await asyncio.wait_for(ws.recv(), 5))
+        if m.get("type") == type_:
+            return m
+    raise AssertionError(f"{type_} 메시지를 받지 못함")
+
+
+async def test_gated_create_with_admin_key_then_invite_join():
+    store = InMemoryStateStore()
+    app = create_app(
+        agent_factory=lambda room_id, emit_card: EchoAgent(),
+        store=store, admin_key="SECRET", debounce_seconds=0.05,
+    )
+    async with _ServerThread(app) as port:
+        uri = f"ws://127.0.0.1:{port}/ws/jeju"
+        async with websockets.connect(uri) as owner:
+            await owner.send(json.dumps({"join": {"name": "민수", "adminKey": "SECRET", "ownerToken": "tok-1"}}))
+            adm = json.loads(await asyncio.wait_for(owner.recv(), 5))
+            assert adm["type"] == "admitted" and adm["owner"] is True
+            invite = adm["invite"]
+            assert invite
+
+            # 초대 코드로 게스트 입장 허용
+            async with websockets.connect(uri) as guest:
+                await guest.send(json.dumps({"join": {"name": "영희", "inviteCode": invite}}))
+                g = json.loads(await asyncio.wait_for(guest.recv(), 5))
+                assert g["type"] == "admitted" and g["owner"] is False
+
+
+async def test_gated_rejects_without_admin_key_or_invite():
+    store = InMemoryStateStore()
+    app = create_app(
+        agent_factory=lambda room_id, emit_card: EchoAgent(),
+        store=store, admin_key="SECRET", debounce_seconds=0.05,
+    )
+    async with _ServerThread(app) as port:
+        uri = f"ws://127.0.0.1:{port}/ws/jeju"
+        async with websockets.connect(uri) as ws:
+            await ws.send(json.dumps({"join": {"name": "외부인"}}))  # 키도 초대코드도 없음
+            m = json.loads(await asyncio.wait_for(ws.recv(), 5))
+            assert m["type"] == "denied"
+
+
+async def test_gated_rejects_non_handshake_first_message():
+    store = InMemoryStateStore()
+    app = create_app(
+        agent_factory=lambda room_id, emit_card: EchoAgent(),
+        store=store, admin_key="SECRET", debounce_seconds=0.05,
+    )
+    async with _ServerThread(app) as port:
+        uri = f"ws://127.0.0.1:{port}/ws/jeju"
+        async with websockets.connect(uri) as ws:
+            await ws.send(json.dumps({"speaker": "x", "text": "hi"}))  # 핸드셰이크 아님
+            m = json.loads(await asyncio.wait_for(ws.recv(), 5))
+            assert m["type"] == "denied"
+
+
+async def test_gated_guest_cannot_confirm_itinerary():
+    store = InMemoryStateStore()
+    app = create_app(
+        agent_factory=lambda room_id, emit_card: EchoAgent(),
+        store=store, admin_key="SECRET", debounce_seconds=0.05,
+    )
+    async with _ServerThread(app) as port:
+        uri = f"ws://127.0.0.1:{port}/ws/jeju"
+        async with websockets.connect(uri) as owner:
+            await owner.send(json.dumps({"join": {"name": "민수", "adminKey": "SECRET", "ownerToken": "tok-1"}}))
+            adm = await _recv_until(owner, "admitted")
+            invite = adm["invite"]
+            async with websockets.connect(uri) as guest:
+                await guest.send(json.dumps({"join": {"name": "영희", "inviteCode": invite}}))
+                await _recv_until(guest, "admitted")
+                await guest.send(json.dumps({"action": "confirm_itinerary", "by": "영희"}))
+                err = await _recv_until(guest, "error")
+                assert "방장" in err["text"]
+
+
 async def test_two_clients_bot_responds_only_on_explicit_call_and_broadcasts_to_all():
     app = create_app(
         agent_factory=lambda room_id, emit_card: EchoAgent(), debounce_seconds=0.05

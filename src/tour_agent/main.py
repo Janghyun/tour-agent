@@ -93,6 +93,13 @@ _place_finder = _agg_finder
 # 링크 '후보 등록' 버튼: URL에서 장소명을 뽑아 검색에 넘긴다.
 from .link_resolver import resolve_place_name as _url_resolver  # noqa: E402
 
+# 접근 제어 — ADMIN_KEY가 있으면 방 생성/입장을 게이팅(없으면 로컬·개발용 오픈).
+_admin_key = os.environ.get("ADMIN_KEY") or None
+if _admin_key:
+    print("[접근] ADMIN_KEY 설정됨 — 방 생성은 관리자 키, 입장은 초대 코드로 제한")
+else:
+    print("[접근] ADMIN_KEY 없음 — 게이팅 비활성(로컬·개발). 외부 공개 시 반드시 설정하세요")
+
 app = create_app(
     agent_factory=lambda room_id, emit_card: build_default_runner(
         room_id, _store, backend=_backend, emit_card=emit_card, kakao_client=_kakao,
@@ -103,6 +110,7 @@ app = create_app(
     url_resolver=_url_resolver,
     message_store=_message_store,
     export_store=_export_store,
+    admin_key=_admin_key,
 )
 
 

@@ -34,6 +34,7 @@ class RoomState:
     confirmed_itinerary: list[Place] | None = None
     accommodations: list[Place] = field(default_factory=list)  # 박별 거점
     preferences: list[Preference] = field(default_factory=list)
+    access: dict = field(default_factory=dict)  # 입장 인가용 {"owner_hash":..., "invite":...} — 클라이언트엔 노출 안 함
 
     def add_candidate(self, place: Place) -> None:
         if all(p.id != place.id for p in self.candidates):  # id 기준 중복 제거
@@ -79,6 +80,7 @@ class RoomState:
             ),
             "accommodations": [asdict(p) for p in self.accommodations],
             "preferences": [asdict(pr) for pr in self.preferences],
+            "access": self.access,
         }
 
     @classmethod
@@ -96,6 +98,7 @@ class RoomState:
             ),
             accommodations=[Place(**p) for p in d.get("accommodations", [])],
             preferences=[Preference(**pr) for pr in d.get("preferences", [])],
+            access=d.get("access", {}),
         )
 
 

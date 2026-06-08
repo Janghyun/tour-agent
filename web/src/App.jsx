@@ -4,7 +4,7 @@ import { Icon } from "./icons.jsx";
 import { ChatArea, Composer, Guide } from "./chat.jsx";
 import { LobbyScreen, CreateRoomModal, JoinRoomModal } from "./lobby.jsx";
 import { SidePanel } from "./panel.jsx";
-import { loadMe, saveMe, loadRooms, rememberRoom, forgetRoom, makeRoomCode } from "./rooms.js";
+import { loadMe, saveMe, loadRooms, rememberRoom, forgetRoom, makeRoomCode, roomCred, saveRoomCred, saveAdminKey, loadAdminKey, randomToken } from "./rooms.js";
 import { itineraryToHtml, downloadHtml, openHtml } from "./export.js";
 
 const _loc = typeof location !== "undefined" ? location : { search: "", hostname: "localhost" };
@@ -31,6 +31,9 @@ export default function App() {
   const params = new URLSearchParams(_loc.search);
   const urlRoom = params.get("room") || "";
   const urlMe = params.get("me") || "";
+  const urlInvite = params.get("invite") || "";
+  // 초대 링크(?room=&invite=)로 들어오면 그 방의 초대코드를 이 기기에 저장해 재입장에도 쓰게 한다.
+  if (urlRoom && urlInvite) saveRoomCred(urlRoom, { invite: urlInvite });
 
   const [me, setMe] = useState(urlMe || loadMe());
   const [session, setSession] = useState(() => {
@@ -54,9 +57,15 @@ export default function App() {
 
   const onCreate = (meta) => {
     const code = makeRoomCode(meta.dest + ":" + me + ":" + Date.now());
+    // 방 생성: 관리자 키 저장 + 이 방의 소유권 토큰 발급(방장 증명용).
+    if (meta.adminKey) saveAdminKey(meta.adminKey);
+    saveRoomCred(code, { ownerToken: randomToken() });
     enter(code, "host", meta);
   };
-  const onJoinCode = (code) => enter(code, "traveler", null);
+  const onJoinCode = (code, invite) => {
+    if (invite) saveRoomCred(code, { invite });
+    enter(code, "traveler", null);
+  };
   const onEnterExisting = (r) => enter(r.id, r.role || "traveler", r);
 
   if (!session) {
@@ -95,6 +104,10 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
   const [showGuide, setShowGuide] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyItems, setHistoryItems] = useState([]); // 내보낸 기록(백엔드, 방 멤버 공유)
+  const [denied, setDenied] = useState(null); // 입장 거부 사유(게이팅)
+  const [invite, setInvite] = useState(() => roomCred(room).invite || ""); // 초대 코드(공유용)
+  const [inviteCopied, setInviteCopied] = useState(false);
+  const deniedRef = useRef(false); // 거부되면 재연결 중단
   const connRef = useRef(null);
   const keyRef = useRef(2_000_000); // 복원 메시지 _k와 충돌 방지(새 메시지는 큰 값부터)
   const startRef = useRef(0); // 봇 응답 시작 시각(소요 시간 계산용)
@@ -129,14 +142,30 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
           // 재연결 시 백엔드가 history를 다시 보내므로, 중복을 막기 위해 메시지를 초기화하고
           // 새로 받은 history로 다시 채운다(모든 메시지는 백엔드가 보존·재전송한다).
           setMsgs([]);
+          // 입장 핸드셰이크 — 가장 먼저 보낸다(게이팅 모드면 백엔드가 이걸로 인가).
+          const cred = roomCred(room);
+          const join = { name: me };
+          if (cred.ownerToken) join.ownerToken = cred.ownerToken;
+          if (cred.invite) join.inviteCode = cred.invite;
+          if (role === "host") join.adminKey = loadAdminKey();
+          conn.sendAction({ join });
           // 방을 만든 사람(host)만 방장·메타를 등록한다(참여자는 건드리지 않음).
           if (role === "host" && meta) {
             conn.sendAction({ action: "set_meta", destination: meta.destination || meta.dest || "", dates: meta.dates || "", owner: me });
             if (meta.base) conn.sendAction({ action: "set_accommodation", place: { id: meta.base, name: meta.base, category: "숙소", address: "", x: 0, y: 0 } });
           }
         },
+        onAdmitted: (m) => {
+          // 방장이면 발급된 초대 코드를 저장·표시(친구 초대 링크 공유용).
+          if (m.owner && m.invite) { saveRoomCred(room, { invite: m.invite }); setInvite(m.invite); }
+        },
+        onDenied: (m) => {
+          deniedRef.current = true;  // 재연결 중단
+          setStatus("입장 거부됨");
+          setDenied(m.reason || "이 방에 입장할 수 없어요.");
+        },
         onClose: () => {
-          if (closed) return;
+          if (closed || deniedRef.current) return;  // 우리가 닫았거나 입장 거부면 재연결 안 함
           // 대기 중이던 응답은 연결이 끊겨 못 받으니 인디케이터를 풀어준다(무한 '처리 중' 방지).
           if (startRef.current) { startRef.current = 0; setPending(false); }
           attempts += 1;
@@ -252,6 +281,34 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
     setTimeout(() => setCopied(false), 1500);
   };
 
+  // 초대 링크 = 현재 페이지 주소 + ?room=&invite= (GH Pages 서브경로 포함).
+  const inviteLink = () => {
+    const base = typeof location !== "undefined" ? location.origin + location.pathname : "";
+    return `${base}?room=${encodeURIComponent(room)}&invite=${encodeURIComponent(invite)}`;
+  };
+  const copyInvite = () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) navigator.clipboard.writeText(inviteLink()).catch(() => {});
+    setInviteCopied(true);
+    setTimeout(() => setInviteCopied(false), 1500);
+  };
+
+  // 게이팅 모드에서 입장 거부되면 방 UI 대신 안내 화면.
+  if (denied) {
+    return (
+      <div style={{ ...S.app, alignItems: "center", justifyContent: "center", textAlign: "center", padding: 24 }}>
+        <div style={{ maxWidth: 380 }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
+          <h2 style={{ margin: "0 0 8px" }}>입장할 수 없어요</h2>
+          <p style={{ color: "var(--ink-2)", marginBottom: 18 }}>{denied}</p>
+          <p style={{ color: "var(--ink-3)", fontSize: 13, marginBottom: 18 }}>
+            이 방은 초대받은 사람만 들어올 수 있어요. 방장에게 <b>초대 링크</b>를 받아 다시 시도해 주세요.
+          </p>
+          <button style={{ ...S.btn, justifyContent: "center", padding: "10px 18px" }} onClick={onLobby}>로비로 돌아가기</button>
+        </div>
+      </div>
+    );
+  }
+
   const candidates = state?.candidates || [];
   const addedIds = new Set(candidates.map((c) => c.id));
   const isHost = state?.owner ? state.owner === me : role === "host";
@@ -294,6 +351,11 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
         <button onClick={copyCode} style={{ ...S.ghostBtn }} title="방 코드 복사">
           <Icon.send s={13} /> {copied ? "복사됨" : `코드 ${room}`}
         </button>
+        {invite && (
+          <button onClick={copyInvite} style={{ ...S.ghostBtn, color: "var(--accent-700)" }} title="초대 링크 복사(이 링크로 들어오면 입장 가능)">
+            <Icon.plus s={13} /> {inviteCopied ? "링크 복사됨" : "초대 링크"}
+          </button>
+        )}
         <button onClick={openHistory} style={{ ...S.ghostBtn }} title="내보낸 일정 기록(방 공유)">
           <Icon.calendar s={13} /> 기록
         </button>

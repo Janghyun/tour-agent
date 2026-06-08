@@ -9,7 +9,9 @@ export function connectRoom(url, handlers = {}) {
     } catch {
       return;
     }
-    if (msg?.type === "card") handlers.onCard?.(msg.card, msg);
+    if (msg?.type === "admitted") handlers.onAdmitted?.(msg);
+    else if (msg?.type === "denied") handlers.onDenied?.(msg);
+    else if (msg?.type === "card") handlers.onCard?.(msg.card, msg);
     else if (msg?.type === "state") handlers.onState?.(msg.state, msg);
     else if (msg?.type === "exports") handlers.onExports?.(msg.items || []);
     else if (msg?.type === "error") handlers.onError?.(msg.text, msg);

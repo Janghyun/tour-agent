@@ -3,6 +3,7 @@
  * 방 목록은 localStorage(rooms.js) 기반 재입장 바로가기다. */
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
+import { loadAdminKey } from "./rooms.js";
 
 const ROOM_EMOJIS = ["🌋", "🏝️", "🌊", "⛰️", "🏖️", "🌃", "🚙", "⛵"];
 
@@ -102,12 +103,13 @@ export function CreateRoomModal({ onClose, onCreate }) {
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [base, setBase] = useState("");
+  const [adminKey, setAdminKey] = useState(() => loadAdminKey());
   const canCreate = name.trim().length > 0;
 
   const create = () => {
     if (!canCreate) return;
     const dates = start && end ? `${fmtDate(start)}–${fmtDate(end)}` : "기간 미정";
-    onCreate({ emoji, dest: name.trim(), destination: dest.trim() || name.trim(), dates, base: base.trim() });
+    onCreate({ emoji, dest: name.trim(), destination: dest.trim() || name.trim(), dates, base: base.trim(), adminKey: adminKey.trim() });
   };
 
   return (
@@ -144,6 +146,14 @@ export function CreateRoomModal({ onClose, onCreate }) {
               <label>거점 / 숙소 지역 <span style={{ color: "var(--ink-4)", fontWeight: 500 }}>(선택)</span></label>
               <input value={base} onChange={(e) => setBase(e.target.value)} placeholder="예) 성산 거점, 해운대 거점" />
             </div>
+            <div className="field">
+              <label>관리자 키 <span style={{ color: "var(--ink-4)", fontWeight: 500 }}>(방 생성 권한)</span></label>
+              <input type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)}
+                     placeholder="배포 서버에 설정한 ADMIN_KEY" autoComplete="off" />
+              <div style={{ fontSize: 12, color: "var(--ink-4)", marginTop: 4 }}>
+                공개 배포 시 방 생성엔 관리자 키가 필요해요(로컬은 비워도 됩니다). 입력하면 이 기기에 저장돼요.
+              </div>
+            </div>
           </div>
         </div>
         <div className="modal-foot">
@@ -164,9 +174,10 @@ export function JoinRoomModal({ onClose, onJoin }) {
     return () => window.removeEventListener("keydown", h);
   }, [onClose]);
   const [code, setCode] = useState("");
+  const [invite, setInvite] = useState("");
   const ref = useRef(null);
   const can = code.trim().length > 0;
-  const join = () => { if (can) onJoin(code.trim().toUpperCase()); };
+  const join = () => { if (can) onJoin(code.trim().toUpperCase(), invite.trim()); };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -182,8 +193,14 @@ export function JoinRoomModal({ onClose, onJoin }) {
                    onKeyDown={(e) => { if (e.key === "Enter") join(); }}
                    placeholder="예) JEJU9X 또는 친구가 보낸 코드" autoFocus />
           </div>
+          <div className="field" style={{ marginTop: 12 }}>
+            <label>초대 코드 <span style={{ color: "var(--ink-4)", fontWeight: 500 }}>(받았다면)</span></label>
+            <input value={invite} onChange={(e) => setInvite(e.target.value)}
+                   onKeyDown={(e) => { if (e.key === "Enter") join(); }}
+                   placeholder="초대 링크를 받았으면 링크로 바로 입장하세요" autoComplete="off" />
+          </div>
           <div className="join-invited" style={{ marginTop: 14 }}>
-            <Icon.user s={15} /> 여행자로 참여합니다. 일정 확정은 방장만 할 수 있어요.
+            <Icon.user s={15} /> 여행자로 참여합니다. 공개 배포된 방은 초대 코드(또는 초대 링크)가 필요해요.
           </div>
         </div>
         <div className="modal-foot">

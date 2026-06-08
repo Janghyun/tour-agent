@@ -14,6 +14,7 @@ from typing import Awaitable, Callable
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
+from .access import authorize_join
 from .actions import (
     ActionError,
     add_candidate_by_link,
@@ -114,16 +115,44 @@ class RoomHub:
 def create_app(
     agent_factory: AgentFactory, *, store=None, debounce_seconds: float = 1.5,
     place_finder=None, url_resolver=None, message_store=None, export_store=None,
+    admin_key: str | None = None,
 ) -> FastAPI:
     app = FastAPI()
     hub = RoomHub(
         agent_factory, store=store, debounce_seconds=debounce_seconds, message_store=message_store
     )
     app.state.hub = hub
+    # 방장 전용 동작 — 게이팅(admin_key) 모드에서 방장이 아닌 입장자는 막는다.
+    OWNER_ONLY = {"set_meta", "set_accommodation", "confirm_itinerary"}
 
     @app.websocket("/ws/{room_id}")
     async def ws_endpoint(ws: WebSocket, room_id: str) -> None:
         await ws.accept()
+        is_owner = False
+        # 게이팅 모드: 입장 핸드셰이크({"join": {...}})를 먼저 받아 인가한다.
+        # admin_key 미설정(로컬·개발)이면 핸드셰이크를 기다리지 않고 기존대로 바로 입장시킨다.
+        if admin_key and store is not None:
+            try:
+                first = await asyncio.wait_for(ws.receive_json(), 30)
+            except Exception:  # noqa: BLE001 - 시간초과·연결오류
+                await ws.close()
+                return
+            join = first.get("join") if isinstance(first, dict) else None
+            if join is None:
+                await ws.send_json({"type": "denied", "reason": "입장 정보가 필요해요."})
+                await ws.close()
+                return
+            st0 = await store.load(room_id)
+            decision = authorize_join(st0, join, admin_key=admin_key)
+            if not decision.ok:
+                await ws.send_json({"type": "denied", "reason": decision.reason})
+                await ws.close()
+                return
+            if decision.save_needed:
+                await store.save(st0)
+            is_owner = decision.is_owner
+            await ws.send_json({"type": "admitted", "owner": is_owner, "invite": decision.invite_code})
+
         # 입장 시 과거 대화를 이 클라이언트에게만 먼저 보내 화면을 복원한다(방 멤버 공유).
         for past in await hub.history(room_id):
             await ws.send_json({**past, "history": True})
@@ -149,7 +178,16 @@ def create_app(
         try:
             while True:
                 data = await ws.receive_json()
+                # 핸드셰이크 메시지는 입장 후엔 무시(open 모드에선 첫 메시지로 들어올 수 있다).
+                if isinstance(data, dict) and data.get("join"):
+                    continue
                 if isinstance(data, dict) and data.get("action"):
+                    # 방장 전용 동작은 게이팅 모드에서 방장만 허용(이름 사칭 방지).
+                    if admin_key and data.get("action") in OWNER_ONLY and not is_owner:
+                        await ws.send_json(
+                            {"speaker": "시스템", "type": "error", "text": "방장만 할 수 있는 동작이에요."}
+                        )
+                        continue
                     # 내보낸 일정 기록(방 멤버 공유) — 상태 저장(store)과 무관.
                     if data.get("action") == "add_export":
                         if export_store is not None:
