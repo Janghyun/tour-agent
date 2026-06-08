@@ -5,6 +5,7 @@ from tour_agent.kakao import Place, RouteInfo
 
 _DB = {
     "애월 숙소": Place("0", "애월 숙소", "숙소", "", "", 126.31, 33.46, "u0"),
+    "제주국제공항": Place("9", "제주국제공항", "공항", "", "", 126.49, 33.51, "u9"),
     "성산일출봉": Place("1", "성산일출봉", "명소", "", "", 126.94, 33.46, "u1"),
     "우도": Place("2", "우도", "자연", "", "", 126.95, 33.50, "u2"),
     "돈사돈": Place("3", "돈사돈", "흑돼지", "", "", 126.49, 33.49, "u3"),
@@ -20,7 +21,7 @@ async def test_build_fills_coords_orders_and_times():
         "title": "제주",
         "days": [{
             "date": "7/26", "accommodation": "애월 숙소",
-            "items": [{"name": "우도"}, {"name": "성산일출봉"}, {"name": "돈사돈", "meal": "dinner"}],
+            "items": [{"name": "제주국제공항"}, {"name": "우도"}, {"name": "성산일출봉"}, {"name": "돈사돈", "meal": "dinner"}],
         }],
     }
     card = await build_itinerary(plan, place_finder=_finder)
@@ -31,7 +32,7 @@ async def test_build_fills_coords_orders_and_times():
     assert [i["time"] for i in day["items"]] == sorted(i["time"] for i in day["items"])  # 시간 오름차순
     names = [i["name"] for i in day["items"]]
     assert {"우도", "성산일출봉", "돈사돈"} <= set(names)
-    assert names[-1].endswith("체크인")  # 첫날 숙소 체크인은 동선 마지막
+    assert names[-1].endswith("체크인")  # 도착일(공항 시작) 숙소 체크인은 동선 마지막
 
 
 async def test_build_uses_route_finder_for_travel():
@@ -153,6 +154,37 @@ async def test_second_day_inherits_accommodation_when_missing():
     assert d2["items"][0]["name"] == "애월 숙소 출발"  # 상속한 숙소에서 출발
     assert d2["items"][0]["x"] == 126.31
     assert d2["accommodation"] == "애월 숙소"
+
+
+async def test_single_day_non_arrival_starts_from_lodging():
+    """'3일차만'처럼 단일 날(공항 없음) 요청은 도착일이 아니므로 숙소에서 출발한다."""
+    plan = {"days": [
+        {"accommodation": "애월 숙소", "items": [{"name": "성산일출봉"}, {"name": "우도"}, {"name": "돈사돈", "meal": "dinner"}]},
+    ]}
+    card = await build_itinerary(plan, place_finder=_finder)
+    names = [i["name"] for i in card["days"][0]["items"]]
+    assert names[0] == "애월 숙소 출발"  # 숙소에서 시작
+    assert not any(n.endswith("체크인") for n in names)  # 도착일 아님 → 체크인 없음
+
+
+async def test_single_day_arrival_with_airport_checks_in_last():
+    """단일 날이라도 공항(도착지)으로 시작하면 도착일로 보고 체크인으로 끝낸다."""
+    plan = {"days": [
+        {"accommodation": "애월 숙소", "items": [{"name": "제주국제공항"}, {"name": "성산일출봉"}]},
+    ]}
+    card = await build_itinerary(plan, place_finder=_finder)
+    names = [i["name"] for i in card["days"][0]["items"]]
+    assert not any(n.endswith("출발") for n in names)   # 도착일 → 숙소 출발 없음
+    assert any(n.endswith("체크인") for n in names)      # 체크인 있음
+
+
+async def test_explicit_arrival_flag_overrides_heuristic():
+    """봇이 arrival=false를 명시하면 공항으로 시작해도 숙소에서 출발(명시 우선)."""
+    plan = {"days": [
+        {"accommodation": "애월 숙소", "arrival": False, "items": [{"name": "제주국제공항"}, {"name": "성산일출봉"}]},
+    ]}
+    card = await build_itinerary(plan, place_finder=_finder)
+    assert card["days"][0]["items"][0]["name"] == "애월 숙소 출발"
 
 
 async def test_build_rebiases_region_outlier():

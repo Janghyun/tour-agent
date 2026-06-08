@@ -113,6 +113,9 @@ COMPOSE_ITINERARY_SCHEMA = {
                 "properties": {
                     "date": {"type": "string"},
                     "accommodation": {"type": "string"},
+                    # 도착일(여행 첫날, 공항 등 도착지에서 시작해 숙소 체크인으로 끝나는 날)이면 true.
+                    # 특정 날짜만 요청받으면(예: '3일차') 그 날이 도착일이 아닌 한 false로 둔다(숙소에서 출발).
+                    "arrival": {"type": "boolean"},
                     "items": {
                         "type": "array",
                         "items": {

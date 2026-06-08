@@ -55,13 +55,25 @@ async def build_itinerary(plan, *, place_finder, route_finder=None, start_hour: 
     title = plan.get("title") or "여행 일정"
     days_out = []
     carry_acc = ""  # 봇이 어떤 날 accommodation을 빠뜨려도 앞 날의 숙소를 상속한다.
+    total_days = len(plan.get("days", []))
 
     for di, day in enumerate(plan.get("days", [])):
-        is_first = di == 0
         acc_name = day.get("accommodation") or carry_acc
         if acc_name:
             carry_acc = acc_name
         raw = [it for it in day.get("items", []) if isinstance(it, dict) and it.get("name")]
+        # '도착일'(첫날) 판정 — 도착일만 숙소가 아니라 도착지(공항 등)에서 시작하고 체크인으로 끝난다.
+        # 봇이 arrival을 주면 그대로 따른다. 없으면: 여러 날 계획은 0번째가 도착일이지만,
+        # 단일 날 요청('3일차만' 등)은 인덱스가 0이어도 도착지(공항)로 시작할 때만 도착일로 본다
+        # (아니면 그냥 숙소에서 출발하는 보통 날). — 특정 날만 뽑을 때 첫날로 오판하는 것을 막는다.
+        arrival = day.get("arrival")
+        if arrival is None:
+            if total_days <= 1:
+                first_nm = raw[0]["name"] if raw else ""
+                arrival = ("공항" in first_nm) or ("airport" in first_nm.lower())
+            else:
+                arrival = di == 0
+        is_first = bool(arrival)
 
         # 각 항목을 검색(없으면 대안으로 대체). items는 표시이름·남은 대안이 반영된 정규화 목록.
         resolved = list(await asyncio.gather(*(_resolve_item(place_finder, it) for it in raw))) if raw else []
