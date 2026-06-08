@@ -43,6 +43,36 @@ async def test_message_delete_issues_delete_filtered_by_mid():
     assert "eq.abc123" in seen["url"]  # data->>mid=eq.abc123 (인코딩 포함)
 
 
+async def test_message_recent_synthesizes_mid_for_legacy_rows():
+    """mid 없는 옛 행은 행 id로 합성 mid(__row{id})를 붙여 삭제 가능하게 한다."""
+    def handler(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=[
+            {"id": 7, "data": {"speaker": "봇", "text": "new", "mid": "realmid"}},
+            {"id": 5, "data": {"speaker": "봇", "text": "old"}},
+        ])
+
+    ms = SupabaseMessageStore("https://x.supabase.co", "KEY", client=_client(handler))
+    out = await ms.recent("r")  # id.desc → 시간순으로 뒤집힘 → old(5), new(7)
+    assert out[0]["text"] == "old" and out[0]["mid"] == "__row5"  # 합성 mid
+    assert out[1]["mid"] == "realmid"  # 기존 mid는 유지
+
+
+async def test_message_delete_legacy_row_by_id():
+    """합성 mid(__row{id})로 삭제 요청하면 행 id로 삭제한다."""
+    seen = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen["url"] = str(req.url)
+        seen["method"] = req.method
+        return httpx.Response(204)
+
+    ms = SupabaseMessageStore("https://x.supabase.co", "KEY", client=_client(handler))
+    await ms.delete("r", "__row5")
+
+    assert seen["method"] == "DELETE"
+    assert "id=eq.5" in seen["url"] and "room_id=eq.r" in seen["url"]
+
+
 async def test_message_recent_returns_chronological():
     def handler(req: httpx.Request) -> httpx.Response:
         # PostgREST는 order=id.desc로 최신순 반환 → 스토어가 시간순으로 뒤집어야 한다.

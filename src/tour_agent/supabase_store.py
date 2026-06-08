@@ -126,20 +126,31 @@ class SupabaseMessageStore:
         resp = await self._request(
             "GET",
             self._table,
-            params={"room_id": f"eq.{room_id}", "select": "data", "order": "id.desc", "limit": str(limit)},
+            params={"room_id": f"eq.{room_id}", "select": "id,data", "order": "id.desc", "limit": str(limit)},
             headers=self._headers(),
         )
         if resp.status_code >= 400:
             raise SupabaseError(f"메시지 조회 실패({resp.status_code}): {resp.text[:200]}")
         rows = resp.json()
-        return [r["data"] for r in reversed(rows)]
+        out: list[dict] = []
+        for r in reversed(rows):
+            data = r.get("data") or {}
+            # mid 기능 이전에 저장된 옛 메시지엔 mid가 없다 → 행 id로 합성 mid를 붙여 삭제 가능하게.
+            if "mid" not in data and r.get("id") is not None:
+                data = {**data, "mid": f"__row{r['id']}"}
+            out.append(data)
+        return out
 
     async def delete(self, room_id: str, mid: str) -> None:
-        """data->>mid 가 일치하는 메시지를 삭제한다(메시지 id 기반)."""
+        """메시지를 삭제한다. 합성 mid(__row{id})는 행 id로, 그 외엔 data->>mid로 지운다."""
+        if isinstance(mid, str) and mid.startswith("__row"):
+            params = {"room_id": f"eq.{room_id}", "id": f"eq.{mid[len('__row'):]}"}
+        else:
+            params = {"room_id": f"eq.{room_id}", "data->>mid": f"eq.{mid}"}
         resp = await self._request(
             "DELETE",
             self._table,
-            params={"room_id": f"eq.{room_id}", "data->>mid": f"eq.{mid}"},
+            params=params,
             headers=self._headers({"Prefer": "return=minimal"}),
         )
         if resp.status_code >= 400:
