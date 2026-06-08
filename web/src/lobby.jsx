@@ -3,7 +3,7 @@
  * 방 목록은 localStorage(rooms.js) 기반 재입장 바로가기다. */
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
-import { loadAdminKey, saveAdminKey } from "./rooms.js";
+import { loadAdminKey } from "./rooms.js";
 
 const ROOM_EMOJIS = ["🌋", "🏝️", "🌊", "⛰️", "🏖️", "🌃", "🚙", "⛵"];
 
@@ -15,8 +15,6 @@ function avaColor(name = "") {
 }
 
 export function LobbyScreen({ me, onMe, rooms, onEnter, onNew, onJoin, onForget }) {
-  const [adminKey, setAdminKey] = useState(() => loadAdminKey());
-  const onAdminKey = (v) => { setAdminKey(v); saveAdminKey(v); };
   return (
     <div className="lobby scroll">
       <div className="lobby-top">
@@ -34,18 +32,9 @@ export function LobbyScreen({ me, onMe, rooms, onEnter, onNew, onJoin, onForget 
           <p>먼저 이름을 정하고, 함께 떠날 여행 방을 만들거나 코드로 입장하세요.</p>
         </div>
 
-        <div className="field" style={{ marginBottom: 14, maxWidth: 320 }}>
+        <div className="field" style={{ marginBottom: 22, maxWidth: 320 }}>
           <label>내 이름 <span className="req">*</span></label>
           <input value={me} onChange={(e) => onMe(e.target.value)} placeholder="예) 민수, 영희" maxLength={12} />
-        </div>
-
-        <div className="field" style={{ marginBottom: 22, maxWidth: 320 }}>
-          <label>관리자 키 <span style={{ color: "var(--ink-4)", fontWeight: 500 }}>(방 만들기·내 방 관리용 · 선택)</span></label>
-          <input type="password" value={adminKey} onChange={(e) => onAdminKey(e.target.value)}
-                 placeholder="배포 서버 ADMIN_KEY (없으면 비워두세요)" autoComplete="off" />
-          <div style={{ fontSize: 12, color: "var(--ink-4)", marginTop: 4 }}>
-            공개 배포된 서비스에서 방을 만들거나 내가 만든 방에 다시 들어가려면 필요해요. 이 기기에만 저장됩니다.
-          </div>
         </div>
 
         <div className="lobby-actions">
