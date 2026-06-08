@@ -132,10 +132,27 @@ async def test_first_day_does_not_start_from_lodging():
         {"accommodation": "애월 숙소", "items": [{"name": "돈사돈"}, {"name": "성산일출봉"}]},  # 둘째날
     ]}
     card = await build_itinerary(plan, place_finder=_finder)
-    # 첫날은 숙소가 출발점이 아니므로 출발 핀(acc) 없음
-    assert "acc_x" not in card["days"][0]
-    # 둘째날부터는 숙소에서 출발(출발 핀)
-    assert card["days"][1].get("acc_x") == 126.31
+    # 첫날: 숙소가 출발이 아님 — 첫 항목은 '출발'이 아니고, 마지막이 '체크인'
+    d1 = card["days"][0]
+    assert not d1["items"][0]["name"].endswith("출발")
+    assert d1["items"][-1]["name"].endswith("체크인")
+    # 둘째날: 숙소에서 출발 — 첫 항목이 '{숙소} 출발'이고 숙소 좌표
+    d2 = card["days"][1]
+    assert d2["items"][0]["name"] == "애월 숙소 출발"
+    assert d2["items"][0]["x"] == 126.31 and d2["items"][0]["y"] == 33.46
+
+
+async def test_second_day_inherits_accommodation_when_missing():
+    """봇이 둘째날 accommodation을 빼먹어도, 앞 날의 숙소를 상속해 숙소에서 출발한다."""
+    plan = {"days": [
+        {"accommodation": "애월 숙소", "items": [{"name": "성산일출봉"}]},   # 첫날만 숙소 명시
+        {"items": [{"name": "우도"}, {"name": "돈사돈"}]},                  # 둘째날 숙소 누락
+    ]}
+    card = await build_itinerary(plan, place_finder=_finder)
+    d2 = card["days"][1]
+    assert d2["items"][0]["name"] == "애월 숙소 출발"  # 상속한 숙소에서 출발
+    assert d2["items"][0]["x"] == 126.31
+    assert d2["accommodation"] == "애월 숙소"
 
 
 async def test_build_rebiases_region_outlier():

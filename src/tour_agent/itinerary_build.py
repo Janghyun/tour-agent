@@ -54,10 +54,13 @@ def _hhmm(total_min: int) -> str:
 async def build_itinerary(plan, *, place_finder, route_finder=None, start_hour: int = 9):
     title = plan.get("title") or "여행 일정"
     days_out = []
+    carry_acc = ""  # 봇이 어떤 날 accommodation을 빠뜨려도 앞 날의 숙소를 상속한다.
 
     for di, day in enumerate(plan.get("days", [])):
         is_first = di == 0
-        acc_name = day.get("accommodation")
+        acc_name = day.get("accommodation") or carry_acc
+        if acc_name:
+            carry_acc = acc_name
         raw = [it for it in day.get("items", []) if isinstance(it, dict) and it.get("name")]
 
         # 각 항목을 검색(없으면 대안으로 대체). items는 표시이름·남은 대안이 반영된 정규화 목록.
@@ -133,6 +136,17 @@ async def build_itinerary(plan, *, place_finder, route_finder=None, start_hour: 
         items_out = []
         t = start_hour * 60
         prev = (acc_p.x, acc_p.y) if lodge_start else None
+        # 둘째날부터는 숙소가 동선의 출발점 — 타임라인 맨 앞에 '{숙소} 출발'을 명시한다
+        # (첫날의 '체크인'이 마지막에 붙는 것과 대칭). 지도엔 번호 핀으로 표시된다.
+        if lodge_start:
+            items_out.append({
+                "name": f"{acc_name} 출발" if acc_name else "숙소 출발",
+                "time": _hhmm(t),
+                "category": "숙소",
+                "x": acc_p.x, "y": acc_p.y, "place_url": acc_p.place_url,
+                "travel_from_prev": "",
+                "alternatives": [],
+            })
         for it, p in located:
             travel = ""
             if route_finder is not None and prev is not None:
@@ -181,9 +195,8 @@ async def build_itinerary(plan, *, place_finder, route_finder=None, start_hour: 
                 "alternatives": [{"name": a} for a in (it.get("alternatives") or []) if a],
             })
 
+        # 숙소는 이제 타임라인 항목('출발'/'체크인')으로 들어가므로 별도 acc 핀은 두지 않는다.
         d = {"date": day.get("date"), "accommodation": acc_name, "items": items_out}
-        if lodge_start:  # 숙소에서 출발하는 날만 출발 핀 표시(첫날 제외)
-            d["acc_x"], d["acc_y"] = acc_p.x, acc_p.y
         days_out.append(d)
 
     return {"type": "itinerary", "title": title, "days": days_out}
