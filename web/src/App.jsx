@@ -305,6 +305,13 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
     setReconnectN((n) => n + 1);  // connect effect 재실행 → 저장된 키로 재연결
   };
 
+  // 방 나가기 — 서버에 멤버십 개념이 없으므로, 내 기기 목록에서 제거 + 연결 종료 + 로비로.
+  const leaveRoom = () => {
+    if (typeof window !== "undefined" && !window.confirm("이 방을 나갈까요? 내 방 목록에서 제거돼요. (초대 링크가 있으면 다시 들어올 수 있어요)")) return;
+    forgetRoom(room);
+    onLobby();
+  };
+
   // 게이팅 모드에서 입장 거부되면 방 UI 대신 안내 화면.
   if (denied) {
     return (
@@ -362,6 +369,9 @@ function RoomView({ room, me, role, meta, onLobby, onSwitch }) {
                 <div style={{ height: 1, background: "var(--line)", margin: "5px 0" }} />
                 <button onClick={() => { setMenuOpen(false); onLobby(); }} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", border: "none", background: "transparent", borderRadius: "var(--r-xs)", padding: "8px", cursor: "pointer", font: "inherit", color: "var(--ink-2)" }}>
                   <Icon.plus s={15} /> 새 방 만들기 · 내 방 목록
+                </button>
+                <button onClick={() => { setMenuOpen(false); leaveRoom(); }} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", border: "none", background: "transparent", borderRadius: "var(--r-xs)", padding: "8px", cursor: "pointer", font: "inherit", color: "var(--coral, #E0567B)" }}>
+                  <Icon.x s={15} /> 이 방 나가기
                 </button>
               </div>
             </>
